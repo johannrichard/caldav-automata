@@ -1,1 +1,1 @@
-"""CalDAV Automata — CalDAV proxy with a LISP rule engine."""
+"""CalDAV Automata — CalDAV polling daemon with a LISP rule engine."""

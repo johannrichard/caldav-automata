@@ -86,7 +86,8 @@ Create a `.lisp` file anywhere inside `./rules/`:
 ```lisp
 ; rules/family.lisp
 (rule
-  (calendars "Family")
+  (when
+    (calendar "Family"))
 
   (on-create
     (add-attendee "partner@example.com")
@@ -117,7 +118,9 @@ event is created or updated.
 
 ```lisp
 (rule
-  (calendars <name> …)   ; one or more calendar names; omit to match all
+  (when
+    (calendar "<name>")  ; one or more (calendar ...) clauses = OR match
+    (calendar "<name>")) ; omit the (when ...) block entirely to match all
 
   (on-create             ; actions that run when a new event appears
     <action> …)
@@ -138,14 +141,16 @@ event is created or updated.
 ```lisp
 ; Invite a colleague to every new Work event and set a 30-minute alert.
 (rule
-  (calendars "Work")
+  (when
+    (calendar "Work"))
   (on-create
     (add-attendee "colleague@work.com")
     (set-alert 30 "DISPLAY")))
 
 ; Notify a family group for any calendar that starts with "Family".
 (rule
-  (calendars "Family*")
+  (when
+    (calendar "Family*"))
   (on-create
     (add-attendee "family-group@example.com")
     (set-alert 10 "DISPLAY"))
