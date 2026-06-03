@@ -1,16 +1,15 @@
 services:
   caldav-automata:
-    build: .
+    # Use the pre-built image from GHCR (replace "latest" with a pinned version in production).
+    # To build locally instead, comment out the image line and uncomment build below.
+    image: ghcr.io/johannrichard/caldav-automata:latest
+    # build: .
     # No ports — the daemon connects outward to CalDAV servers; nothing listens here.
+    env_file: .env          # copy .env.example → .env and fill in your secrets
     volumes:
       - caldav-state:/data          # persists state.json across restarts
       - ./rules:/rules:ro           # LISP rule files (hot-reloaded every cycle)
       - ./config:/config:ro         # calendars.yml configuration
-    environment:
-      CONFIG_FILE: "/config/calendars.yml"
-      LOG_LEVEL: "info"
-      # Secrets: set these in a .env file or in your container platform's secret store.
-      ICLOUD_PASSWORD: "${ICLOUD_PASSWORD}"
     restart: unless-stopped
 
 volumes:

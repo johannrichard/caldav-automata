@@ -52,13 +52,27 @@ If you are connecting to iCloud you must use an
 regular Apple ID password. Create one at
 <https://appleid.apple.com/account/manage>.
 
-### 2 — Configure your calendars
+### 2 — Set up your secrets
 
-Copy the example config and fill in your details:
+Copy the environment template and fill in your credentials:
 
 ```sh
-cp config/calendars.yml config/my-calendars.yml
+cp .env.example .env
+chmod 600 .env        # readable only by your user — keep it that way
 ```
+
+Open `.env` and replace the placeholder with your real password:
+
+```sh
+ICLOUD_PASSWORD=your-app-specific-password-here
+```
+
+> `.env` is listed in `.gitignore` and will never be committed.
+
+### 3 — Configure your calendars
+
+Edit `config/calendars.yml` with your iCloud address and the calendar names
+you want to watch:
 
 ```yaml
 # config/calendars.yml
@@ -70,7 +84,7 @@ accounts:
   - name: "iCloud"
     url: "https://caldav.icloud.com/"
     username: "you@icloud.com"
-    password: "${ICLOUD_PASSWORD}"   # resolved from environment
+    password: "${ICLOUD_PASSWORD}"   # resolved from .env at runtime
     calendars:
       - "Family"
       - "Work"
@@ -79,7 +93,7 @@ accounts:
 Calendar names support `fnmatch` wildcards. Use `["*"]` to watch every
 calendar on an account.
 
-### 3 — Write your first rule
+### 4 — Write your first rule
 
 Create a `.lisp` file anywhere inside `./rules/`:
 
@@ -100,11 +114,15 @@ Create a `.lisp` file anywhere inside `./rules/`:
 Rules are composable: a single `.lisp` file can contain multiple `rule`
 blocks, and any number of files can live in the `rules/` directory.
 
-### 4 — Start the daemon
+### 5 — Start the daemon
 
 ```sh
-ICLOUD_PASSWORD=your-app-specific-password docker compose up -d
+docker compose up -d
 ```
+
+Docker Compose reads `.env` automatically and passes the variables into the
+container. To build the image locally instead of pulling from GHCR, swap the
+`image:` line in `docker-compose.yml` for the commented-out `build: .` line.
 
 ---
 

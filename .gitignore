@@ -28,3 +28,6 @@ data/
 # Secrets — never commit real credentials
 config/htpasswd
 !config/htpasswd.example
+
+# Environment file — contains secrets; use .env.example as the committed template
+.env
