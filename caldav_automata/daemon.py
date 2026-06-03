@@ -36,6 +36,7 @@ import logging
 import os
 import signal
 import time
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -103,7 +104,49 @@ def _load_all_rules(rules_dir: str) -> list[Rule]:
     return rules
 
 
-def _matches(rule: Rule, calendar_name: str, subject: str = '', note: str = '') -> bool:
+def _resolve_date_spec(spec: str) -> date:
+    if spec.lower() == 'today':
+        return datetime.now().astimezone().date()
+    return date.fromisoformat(spec)
+
+
+def _event_start_date(component) -> date | None:
+    value = component.get('DTSTART')
+    if value is None:
+        return None
+
+    start = getattr(value, 'dt', value)
+    if isinstance(start, datetime):
+        return start.astimezone().date() if start.tzinfo else start.date()
+    if isinstance(start, date):
+        return start
+    return None
+
+
+def _matches_date_specs(event_date: date | None, specs: list[str], operator: str) -> bool:
+    if not specs:
+        return True
+    if event_date is None:
+        return False
+
+    for spec in specs:
+        target = _resolve_date_spec(spec)
+        if operator == 'on' and event_date == target:
+            return True
+        if operator == 'before' and event_date < target:
+            return True
+        if operator == 'after' and event_date > target:
+            return True
+    return False
+
+
+def _matches(
+    rule: Rule,
+    calendar_name: str,
+    subject: str = '',
+    note: str = '',
+    start_date: date | None = None,
+) -> bool:
     if rule.calendars and not any(
         pat == '*' or fnmatch.fnmatch(calendar_name.lower(), pat.lower())
         for pat in rule.calendars
@@ -119,7 +162,34 @@ def _matches(rule: Rule, calendar_name: str, subject: str = '', note: str = '') 
         for pat in rule.notes
     ):
         return False
+    if not _matches_date_specs(start_date, rule.date_on, 'on'):
+        return False
+    if not _matches_date_specs(start_date, rule.date_before, 'before'):
+        return False
+    if not _matches_date_specs(start_date, rule.date_after, 'after'):
+        return False
     return True
+
+
+def _debug_log_event_title(calendar_name: str, verb: str, uid: str, raw_ical: str) -> None:
+    if not logger.isEnabledFor(logging.DEBUG):
+        return
+
+    try:
+        cal = Calendar.from_ical(raw_ical)
+    except Exception:
+        logger.debug('[%s] Could not parse event title for %s event %s', calendar_name, verb, uid)
+        return
+
+    for component in cal.walk():
+        if component.name != 'VEVENT':
+            continue
+        title = str(component.get('SUMMARY', ''))
+        if title:
+            logger.debug('[%s] %s event title: %s', calendar_name, verb, title)
+        else:
+            logger.debug('[%s] %s event %s has no title', calendar_name, verb, uid)
+        return
 
 
 # ---------------------------------------------------------------------------
@@ -150,8 +220,9 @@ def _apply_rules(
             continue
         subject = str(component.get('SUMMARY', ''))
         note = str(component.get('DESCRIPTION', ''))
+        start_date = _event_start_date(component)
         for rule in rules:
-            if not _matches(rule, calendar_name, subject, note):
+            if not _matches(rule, calendar_name, subject, note, start_date):
                 continue
             actions = rule.on_create if is_new else rule.on_update
             for action in actions:
@@ -215,6 +286,7 @@ def _poll_calendar(
         verb = 'new' if is_new else 'updated'
         uid = url.rstrip('/').split('/')[-1]
         logger.info('[%s] %s event detected: %s', cal_name, verb, uid)
+        _debug_log_event_title(cal_name, verb, uid, event.data)
 
         modified_ical = _apply_rules(event.data, cal_name, is_new, rules)
 

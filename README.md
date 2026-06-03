@@ -166,9 +166,9 @@ event is created or updated.
     <action> …))
 ```
 
-The `when` block can also filter on the event **subject** (SUMMARY) and **note**
-(DESCRIPTION) using `fnmatch` patterns, where `*` matches any sequence of
-characters:
+The `when` block can also filter on the event **subject** (SUMMARY), **note**
+(DESCRIPTION), and **start date** (`DTSTART`). Subject and note filters use
+`fnmatch` patterns, where `*` matches any sequence of characters:
 
 ```lisp
 (rule
@@ -179,8 +179,24 @@ characters:
   …)
 ```
 
+Date filters compare by calendar day. They accept either an ISO date like
+`"2026-05-21"` or the relative value `"today"`:
+
+```lisp
+(rule
+  (when
+    (date-on "today"))
+  …)
+
+(rule
+  (when
+    (date-after "2026-05-21")
+    (date-before "2026-06-01"))
+  …)
+```
+
 Multiple values within the same condition type are OR'd; different condition
-types are AND'd.  A condition type that is omitted matches everything.
+types are AND'd. A condition type that is omitted matches everything.
 
 ```lisp
 ; Matches the Work OR Team calendar, with any subject and any note.
@@ -195,6 +211,13 @@ types are AND'd.  A condition type that is omitted matches everything.
   (when
     (subject "*urgent*")
     (subject "*ASAP*"))
+  …)
+
+; Matches events that start within a fixed date window.
+(rule
+  (when
+    (date-after "2026-05-21")
+    (date-before "2026-06-01"))
   …)
 ```
 
@@ -230,7 +253,20 @@ types are AND'd.  A condition type that is omitted matches everything.
 (rule
   (on-create
     (set-alert 15 "DISPLAY")))
+
+; Add a reminder only for events after a cutoff date.
+(rule
+  (when
+    (calendar "Work")
+    (date-after "2026-05-21"))
+  (on-create
+    (set-alert 30 "DISPLAY")))
 ```
+
+### Debug logging
+
+Set `LOG_LEVEL=DEBUG` to see extra trace output, including the title of each
+new or updated event as it is processed.
 
 ---
 

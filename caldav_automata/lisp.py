@@ -9,14 +9,17 @@ Supported rule syntax
         (calendar "Name")      ; exact name, or "*" for every calendar
         (calendar "Other")     ; multiple (calendar ...) = OR
         (subject "*meeting*")  ; fnmatch pattern on SUMMARY; multiple = OR
-        (note "*urgent*"))     ; fnmatch pattern on DESCRIPTION; multiple = OR
+        (note "*urgent*")      ; fnmatch pattern on DESCRIPTION; multiple = OR
+        (date-on "2026-05-21") ; event DTSTART on this day; multiple = OR
+        (date-after "today"))  ; event DTSTART after this day; multiple = OR
       (on-create              ; triggered when a new event is stored
         (add-attendee "email@example.com" "Full Name")
         (set-alert 15 "DISPLAY" "Reminder"))
       (on-update              ; triggered when an existing event is updated
         (add-attendee "email@example.com" "Full Name")))
 
-Within each condition type (calendar, subject, note) multiple values are OR'd.
+Within each condition type (calendar, subject, note, date-on, date-before,
+date-after) multiple values are OR'd.
 Different condition types are AND'd: all non-empty condition groups must match.
 
 Comments start with `;` and run to the end of the line.
@@ -26,6 +29,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import date
 
 # ---------------------------------------------------------------------------
 # Tokeniser
@@ -103,6 +107,9 @@ class Rule:
     calendars: list[str] = field(default_factory=list)
     subjects: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    date_on: list[str] = field(default_factory=list)
+    date_before: list[str] = field(default_factory=list)
+    date_after: list[str] = field(default_factory=list)
     on_create: list = field(default_factory=list)
     on_update: list = field(default_factory=list)
 
@@ -111,6 +118,9 @@ class Rule:
             f'Rule(calendars={self.calendars!r}, '
             f'subjects={self.subjects!r}, '
             f'notes={self.notes!r}, '
+            f'date_on={self.date_on!r}, '
+            f'date_before={self.date_before!r}, '
+            f'date_after={self.date_after!r}, '
             f'on_create={self.on_create!r}, '
             f'on_update={self.on_update!r})'
         )
@@ -119,6 +129,19 @@ class Rule:
 # ---------------------------------------------------------------------------
 # Compiler  →  Rule objects
 # ---------------------------------------------------------------------------
+
+def _parse_date_spec(value) -> str:
+    spec = str(value).strip()
+    if spec.lower() == 'today':
+        return spec
+    try:
+        date.fromisoformat(spec)
+    except ValueError as exc:
+        raise SyntaxError(
+            f'Unsupported date literal {value!r}; use YYYY-MM-DD or "today"'
+        ) from exc
+    return spec
+
 
 def _compile_form(form) -> Rule | None:
     if not isinstance(form, list) or not form or form[0] != 'rule':
@@ -138,6 +161,12 @@ def _compile_form(form) -> Rule | None:
                     rule.subjects.append(str(cond[1]))
                 elif cond[0] == 'note':
                     rule.notes.append(str(cond[1]))
+                elif cond[0] == 'date-on':
+                    rule.date_on.append(_parse_date_spec(cond[1]))
+                elif cond[0] == 'date-before':
+                    rule.date_before.append(_parse_date_spec(cond[1]))
+                elif cond[0] == 'date-after':
+                    rule.date_after.append(_parse_date_spec(cond[1]))
         elif head == 'on-create':
             rule.on_create = [c for c in clause[1:] if isinstance(c, list)]
         elif head == 'on-update':
