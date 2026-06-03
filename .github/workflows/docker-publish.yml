@@ -83,12 +83,14 @@ jobs:
   cleanup-old-images:
     runs-on: ubuntu-latest
     needs: build-and-push
+    permissions:
+      packages: write
     steps:
       - name: Keep only the latest 5 package versions
         uses: actions/delete-package-versions@v5
         with:
           owner: ${{ github.repository_owner }}
-          package-name: ${{ github.event.repository.name }}
+          package-name: caldav-automata
           package-type: container
           min-versions-to-keep: 5
           delete-only-untagged-versions: false

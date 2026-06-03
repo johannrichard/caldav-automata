@@ -159,7 +159,7 @@ image: ghcr.io/johannrichard/caldav-automata:1.2.3
 ## Docker image publishing and retention
 
 - Images are published from `.github/workflows/docker-publish.yml`.
-- Release pushes use git tags in the form `vX.Y.Z`.
+- Releases are triggered by pushes to git tags in the form `vX.Y.Z`.
 - Manual workflow dispatch accepts `X.Y.Z` or `vX.Y.Z`.
 - After each publish, GHCR housekeeping runs and keeps only the latest 5 image
   versions for this package.
