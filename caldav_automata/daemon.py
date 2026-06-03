@@ -101,13 +101,23 @@ def _load_all_rules(rules_dir: str) -> list[Rule]:
     return rules
 
 
-def _matches(rule: Rule, calendar_name: str) -> bool:
-    if not rule.calendars:
-        return True  # no filter -> match every calendar
-    return any(
+def _matches(rule: Rule, calendar_name: str, subject: str = '', note: str = '') -> bool:
+    if rule.calendars and not any(
         pat == '*' or fnmatch.fnmatch(calendar_name.lower(), pat.lower())
         for pat in rule.calendars
-    )
+    ):
+        return False
+    if rule.subjects and not any(
+        fnmatch.fnmatch(subject.lower(), pat.lower())
+        for pat in rule.subjects
+    ):
+        return False
+    if rule.notes and not any(
+        fnmatch.fnmatch(note.lower(), pat.lower())
+        for pat in rule.notes
+    ):
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -136,8 +146,10 @@ def _apply_rules(
     for component in cal.walk():
         if component.name != 'VEVENT':
             continue
+        subject = str(component.get('SUMMARY', ''))
+        note = str(component.get('DESCRIPTION', ''))
         for rule in rules:
-            if not _matches(rule, calendar_name):
+            if not _matches(rule, calendar_name, subject, note):
                 continue
             actions = rule.on_create if is_new else rule.on_update
             for action in actions:

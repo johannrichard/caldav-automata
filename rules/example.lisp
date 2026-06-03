@@ -8,11 +8,16 @@
 ;   (rule
 ;     (when
 ;       (calendar "Calendar Name")   ; match by name; use "*" for all calendars
-;       (calendar "Other Calendar")) ; multiple (calendar ...) = OR
+;       (calendar "Other Calendar")  ; multiple (calendar ...) = OR
+;       (subject "*keyword*")        ; fnmatch on event SUMMARY; multiple = OR
+;       (note "*keyword*"))          ; fnmatch on event DESCRIPTION; multiple = OR
 ;     (on-create                     ; actions run when a new event is saved
 ;       <action> ...)
 ;     (on-update                     ; actions run when an existing event is saved
 ;       <action> ...))
+;
+; Condition types are AND'd: calendar, subject, and note conditions all apply.
+; Within each type, multiple values are OR'd (any one must match).
 ;
 ; Available actions
 ; -----------------
@@ -62,3 +67,22 @@
 ;     (calendar "Team"))
 ;   (on-update
 ;     (add-attendee "colleague@example.com" "Colleague")))
+
+
+; Set an urgent email alert for any event whose subject contains "urgent".
+; (rule
+;   (when
+;     (subject "*urgent*"))
+;   (on-create
+;     (set-alert 60 "EMAIL" "Urgent event!")))
+
+
+; Add an HR attendee to Work onboarding events matched by subject or note.
+; (rule
+;   (when
+;     (calendar "Work")
+;     (subject "*onboarding*")
+;     (note "*onboarding*"))
+;   (on-create
+;     (add-attendee "hr@example.com" "HR Team")
+;     (set-alert 1440 "EMAIL" "Onboarding event tomorrow")))

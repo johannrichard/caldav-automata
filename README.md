@@ -129,6 +129,38 @@ event is created or updated.
     <action> …))
 ```
 
+The `when` block can also filter on the event **subject** (SUMMARY) and **note**
+(DESCRIPTION) using `fnmatch` patterns, where `*` matches any sequence of
+characters:
+
+```lisp
+(rule
+  (when
+    (calendar "Work")       ; must be in the Work calendar
+    (subject "*standup*")   ; AND SUMMARY must contain "standup"
+    (note "*action item*")) ; AND DESCRIPTION must contain "action item"
+  …)
+```
+
+Multiple values within the same condition type are OR'd; different condition
+types are AND'd.  A condition type that is omitted matches everything.
+
+```lisp
+; Matches the Work OR Team calendar, with any subject and any note.
+(rule
+  (when
+    (calendar "Work")
+    (calendar "Team"))
+  …)
+
+; Matches any calendar whose subject contains "urgent" OR "ASAP".
+(rule
+  (when
+    (subject "*urgent*")
+    (subject "*ASAP*"))
+  …)
+```
+
 ### Actions
 
 | Action | Description |

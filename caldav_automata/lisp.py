@@ -7,12 +7,17 @@ Supported rule syntax
     (rule
       (when
         (calendar "Name")      ; exact name, or "*" for every calendar
-        (calendar "Other"))
+        (calendar "Other")     ; multiple (calendar ...) = OR
+        (subject "*meeting*")  ; fnmatch pattern on SUMMARY; multiple = OR
+        (note "*urgent*"))     ; fnmatch pattern on DESCRIPTION; multiple = OR
       (on-create              ; triggered when a new event is stored
         (add-attendee "email@example.com" "Full Name")
         (set-alert 15 "DISPLAY" "Reminder"))
       (on-update              ; triggered when an existing event is updated
         (add-attendee "email@example.com" "Full Name")))
+
+Within each condition type (calendar, subject, note) multiple values are OR'd.
+Different condition types are AND'd: all non-empty condition groups must match.
 
 Comments start with `;` and run to the end of the line.
 """
@@ -96,12 +101,16 @@ class Rule:
     """A compiled rule ready to be matched and executed."""
 
     calendars: list[str] = field(default_factory=list)
+    subjects: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
     on_create: list = field(default_factory=list)
     on_update: list = field(default_factory=list)
 
     def __repr__(self) -> str:
         return (
             f'Rule(calendars={self.calendars!r}, '
+            f'subjects={self.subjects!r}, '
+            f'notes={self.notes!r}, '
             f'on_create={self.on_create!r}, '
             f'on_update={self.on_update!r})'
         )
@@ -121,8 +130,14 @@ def _compile_form(form) -> Rule | None:
         head = clause[0]
         if head == 'when':
             for cond in clause[1:]:
-                if isinstance(cond, list) and len(cond) >= 2 and cond[0] == 'calendar':
+                if not isinstance(cond, list) or len(cond) < 2:
+                    continue
+                if cond[0] == 'calendar':
                     rule.calendars.append(str(cond[1]))
+                elif cond[0] == 'subject':
+                    rule.subjects.append(str(cond[1]))
+                elif cond[0] == 'note':
+                    rule.notes.append(str(cond[1]))
         elif head == 'on-create':
             rule.on_create = [c for c in clause[1:] if isinstance(c, list)]
         elif head == 'on-update':
