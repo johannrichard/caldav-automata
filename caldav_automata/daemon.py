@@ -262,8 +262,7 @@ def _apply_rules(
             actions = rule.on_create if is_new else rule.on_update
             for action in actions:
                 try:
-                    apply_action(component, action)
-                    changed = True
+                    changed = apply_action(component, action) or changed
                 except Exception:
                     logger.exception('Error applying action %r', action)
 
