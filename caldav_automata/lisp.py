@@ -9,9 +9,10 @@ Supported rule syntax
         (calendar "Name")      ; exact name, or "*" for every calendar
         (calendar "Other")     ; multiple (calendar ...) = OR
         (subject "*meeting*")  ; fnmatch pattern on SUMMARY; multiple = OR
-        (note "*urgent*")      ; fnmatch pattern on DESCRIPTION; multiple = OR
-        (date-on "2026-05-21") ; event DTSTART on this day; multiple = OR
-        (date-after "today"))  ; event DTSTART after this day; multiple = OR
+        (note "*urgent*")       ; fnmatch pattern on DESCRIPTION; multiple = OR
+        (date-on "2026-05-21")  ; event DTSTART on this day; multiple = OR
+        (date-before "today")   ; event DTSTART before this day; multiple = OR
+        (date-after "today"))   ; event DTSTART after this day; multiple = OR
       (on-create              ; triggered when a new event is stored
         (add-attendee "email@example.com" "Full Name")
         (set-alert 15 "DISPLAY" "Reminder"))
