@@ -1,0 +1,18 @@
+services:
+  caldav-automata:
+    build: .
+    ports:
+      - "5232:5232"        # CalDAV / WebDAV — point your calendar app here
+    volumes:
+      - caldav-data:/data                          # persistent calendar storage
+      - ./rules:/rules:ro                          # rule files (hot-reloaded)
+      - ./config/radicale.cfg:/etc/radicale/config:ro
+    environment:
+      RADICALE_URL: "http://127.0.0.1:5233"
+      RULES_DIR: "/rules"
+      LOG_LEVEL: "info"
+      PROXY_PORT: "5232"
+    restart: unless-stopped
+
+volumes:
+  caldav-data:
