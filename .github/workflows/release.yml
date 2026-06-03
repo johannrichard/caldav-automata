@@ -1,0 +1,28 @@
+name: Semantic release
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run python-semantic-release
+        uses: python-semantic-release/python-semantic-release@v9.18.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}

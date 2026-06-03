@@ -161,12 +161,13 @@ image: ghcr.io/johannrichard/caldav-automata:1.2.3
 
 ## Docker image publishing and retention
 
-- Images are published from `.github/workflows/docker-publish.yml`.
-- Releases are triggered by pushes to tags matching `v*.*.*`, and the workflow
-  only accepts strict `X.Y.Z` versions at runtime.
-- PR merges into `master` also publish an image (`latest`, `master`, and
-  short-commit-SHA tag).
-- Manual workflow dispatch accepts strict `X.Y.Z` with optional `v` prefix.
+- Release tags are created automatically on `master` by
+  `.github/workflows/release.yml` using `python-semantic-release`.
+- Docker images are published from `.github/workflows/docker-publish.yml` when
+  semantic-release pushes a `vX.Y.Z` tag.
+- Docker tags are derived by `docker/metadata-action` semver rules
+  (`X.Y.Z`, `X.Y`, `X`, and `latest`) without custom bash parsing.
+- Each published image also gets a GitHub artifact attestation pushed to GHCR.
 - After each publish, GHCR housekeeping prunes old releases and keeps only the
   latest 5 image versions for this package.
 

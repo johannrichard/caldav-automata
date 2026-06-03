@@ -4,25 +4,16 @@ on:
   push:
     tags:
       - "v*.*.*"
-  pull_request:
-    branches:
-      - master
-    types:
-      - closed
-  workflow_dispatch:
-    inputs:
-      image_version:
-        description: Release version to publish (strict X.Y.Z, with optional v prefix)
-        required: true
 
 permissions:
   contents: read
   packages: write
+  id-token: write
+  attestations: write
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.merged == true }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -40,55 +31,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve publish tags
-        id: publish
-        shell: bash
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            {
-              echo "tags<<EOF"
-              echo "type=raw,value=latest"
-              echo "type=sha,format=short"
-              echo "type=raw,value=master"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            RAW_VERSION="${{ github.event.inputs.image_version }}"
-          else
-            RAW_VERSION="${GITHUB_REF_NAME}"
-          fi
-
-          RAW_VERSION="${RAW_VERSION#v}"
-
-          if [[ ! "${RAW_VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "Invalid release version: ${RAW_VERSION}. Expected strict format: X.Y.Z"
-            exit 1
-          fi
-
-          MAJOR="${BASH_REMATCH[1]}"
-          MINOR="${BASH_REMATCH[2]}"
-          PATCH="${BASH_REMATCH[3]}"
-
-          {
-            echo "tags<<EOF"
-            echo "type=raw,value=${MAJOR}.${MINOR}.${PATCH}"
-            echo "type=raw,value=${MAJOR}.${MINOR}"
-            echo "type=raw,value=${MAJOR}"
-            echo "type=raw,value=latest"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
-          tags: ${{ steps.publish.outputs.tags }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
 
       - name: Build and push multi-arch image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -97,6 +52,13 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Attest Docker image provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
   cleanup-old-images:
     runs-on: ubuntu-latest

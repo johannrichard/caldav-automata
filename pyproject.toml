@@ -1,0 +1,13 @@
+[project]
+name = "caldav-automata"
+version = "0.0.0"
+description = "CalDAV polling daemon with a LISP rule engine"
+requires-python = ">=3.10"
+
+[tool.semantic_release]
+branch = "master"
+tag_format = "v{version}"
+version_toml = ["pyproject.toml:project.version"]
+upload_to_vcs_release = true
+upload_to_repository = false
+build_command = "echo 'Skipping package build'"
