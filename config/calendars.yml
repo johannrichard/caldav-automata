@@ -1,0 +1,30 @@
+# CalDAV Automata — configuration file
+# ------------------------------------
+# poll_interval  : seconds between poll cycles (default: 30)
+# rules_dir      : directory that contains *.lisp rule files (hot-reloaded)
+# state_file     : JSON file that tracks event ETags across restarts
+
+poll_interval: 30
+rules_dir: /rules
+state_file: /data/state.json
+
+accounts:
+  # ── iCloud (Apple Calendar) ──────────────────────────────────────────
+  - name: "iCloud"
+    url: "https://caldav.icloud.com/"
+    username: "you@icloud.com"
+    # Use an App-Specific Password from https://appleid.apple.com/account/manage
+    # Store the real value in an environment variable and reference it here.
+    password: "${ICLOUD_PASSWORD}"
+    # List specific calendar display-names to watch, or use ["*"] for all.
+    calendars:
+      - "Family"
+      - "Work"
+
+  # ── Generic CalDAV server (e.g. Nextcloud, Baikal, Radicale) ─────────
+  # - name: "Nextcloud"
+  #   url: "https://nextcloud.example.com/remote.php/dav/"
+  #   username: "alice"
+  #   password: "${NEXTCLOUD_PASSWORD}"
+  #   calendars:
+  #     - "*"            # watch every calendar on this account

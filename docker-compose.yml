@@ -1,0 +1,16 @@
+services:
+  caldav-automata:
+    # Use the pre-built image from GHCR (replace "latest" with a pinned version in production).
+    # To build locally instead, comment out the image line and uncomment build below.
+    image: ghcr.io/johannrichard/caldav-automata:latest
+    # build: .
+    # No ports — the daemon connects outward to CalDAV servers; nothing listens here.
+    env_file: .env          # copy .env.example → .env and fill in your secrets
+    volumes:
+      - caldav-state:/data          # persists state.json across restarts
+      - ./rules:/rules:ro           # LISP rule files (hot-reloaded every cycle)
+      - ./config:/config:ro         # calendars.yml configuration
+    restart: unless-stopped
+
+volumes:
+  caldav-state:
