@@ -1,16 +1,15 @@
 name: Build and publish Docker image
 
 on:
-  workflow_dispatch:
-    inputs:
-      image_tag:
-        description: Docker tag to publish
-        required: true
-        default: latest
+  push:
+    tags:
+      - "v*.*.*"
 
 permissions:
   contents: read
   packages: write
+  id-token: write
+  attestations: write
 
 jobs:
   build-and-push:
@@ -38,9 +37,13 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ github.event.inputs.image_tag }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
 
       - name: Build and push multi-arch image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -49,3 +52,31 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Attest Docker image provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  cleanup-old-images:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      packages: write
+    steps:
+      - name: Resolve package name
+        id: package
+        shell: bash
+        run: echo "name=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Keep only the latest 5 released image versions
+        uses: actions/delete-package-versions@v5
+        with:
+          owner: ${{ github.repository_owner }}
+          package-name: ${{ steps.package.outputs.name }}
+          package-type: container
+          # Keep this value in sync with README.md ("Docker image publishing and retention").
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: false
