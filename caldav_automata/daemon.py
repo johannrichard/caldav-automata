@@ -255,10 +255,27 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
     secret = account.get('password', '')
     watched = account.get('calendars', ['*'])
 
+    # Optional per-account DAVClient knobs — useful for iCloud and other
+    # servers that require non-default TLS or authentication settings.
+    # iCloud works with the generic base URL (https://caldav.icloud.com/)
+    # and lets the library discover the user-specific principal and
+    # calendar-home-set via PROPFIND, which is what client.principal() does.
+    # Pass ssl_verify_cert, auth_type, or headers in the account config to
+    # customise the connection when needed.
+    client_kwargs: dict = {}
+    if 'ssl_verify_cert' in account:
+        client_kwargs['ssl_verify_cert'] = account['ssl_verify_cert']
+    if 'auth_type' in account:
+        client_kwargs['auth_type'] = account['auth_type']
+    if 'headers' in account:
+        client_kwargs['headers'] = account['headers']
+
     logger.debug('Polling account %r', label)
 
     try:
-        client = caldav.DAVClient(url=url, username=username, password=secret)
+        client = caldav.DAVClient(
+            url=url, username=username, password=secret, **client_kwargs
+        )
         principal = client.principal()
         all_calendars = principal.calendars()
     except Exception:

@@ -96,6 +96,12 @@ accounts:
       - "Work"
 ```
 
+**iCloud URL discovery** — Use the generic base URL `https://caldav.icloud.com/`
+as-is. The CalDAV library automatically discovers your user-specific
+principal and calendar-home-set via `PROPFIND`, so you never need to
+hard-code a personal path. iCloud always requires Basic authentication with
+an App-Specific Password (see step 1).
+
 Calendar names support `fnmatch` wildcards. Use `["*"]` to watch every
 calendar on an account.
 
@@ -246,6 +252,9 @@ types are AND'd.  A condition type that is omitted matches everything.
 | `username` | Account username / Apple ID |
 | `password` | Account password or `${ENV_VAR}` reference |
 | `calendars` | List of calendar display-names to watch; supports wildcards; `["*"]` watches all |
+| `ssl_verify_cert` | *(optional)* `true` (default) or `false` to skip TLS verification for self-signed certs |
+| `auth_type` | *(optional)* HTTP authentication type, e.g. `"basic"` (iCloud default) or `"digest"` |
+| `headers` | *(optional)* Map of extra HTTP headers to send with every request |
 
 ---
 

@@ -10,16 +10,28 @@ state_file: /data/state.json
 
 accounts:
   # ── iCloud (Apple Calendar) ──────────────────────────────────────────
+  #
+  # Use the generic base URL below. The caldav library automatically
+  # discovers your user-specific principal and calendar-home-set via
+  # PROPFIND — no need to hard-code a personal path.
+  #
+  # You MUST use an App-Specific Password (not your Apple ID password).
+  # Create one at https://appleid.apple.com/account/manage and store it
+  # in an environment variable so it never appears in this file.
   - name: "iCloud"
     url: "https://caldav.icloud.com/"
     username: "you@icloud.com"
-    # Use an App-Specific Password from https://appleid.apple.com/account/manage
-    # Store the real value in an environment variable and reference it here.
     password: "${ICLOUD_PASSWORD}"
     # List specific calendar display-names to watch, or use ["*"] for all.
     calendars:
       - "Family"
       - "Work"
+    # Optional connection knobs (rarely needed for iCloud but available):
+    #
+    # ssl_verify_cert: true          # set to false only for self-signed certs
+    # auth_type: "basic"             # force Basic auth (iCloud default)
+    # headers:                       # extra HTTP headers sent with every request
+    #   User-Agent: "CalDAV-Automata/1.0"
 
   # ── Generic CalDAV server (e.g. Nextcloud, Baikal, Radicale) ─────────
   # - name: "Nextcloud"
