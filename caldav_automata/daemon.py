@@ -178,17 +178,28 @@ def _debug_log_event_title(calendar_name: str, verb: str, uid: str, raw_ical: st
     try:
         cal = Calendar.from_ical(raw_ical)
     except Exception:
-        logger.debug('[%s] Could not parse event title for %s event %s', calendar_name, verb, uid)
+        logger.debug(
+            '[%s] Could not parse event title/date for %s event %s',
+            calendar_name, verb, uid,
+        )
         return
 
     for component in cal.walk():
         if component.name != 'VEVENT':
             continue
         title = str(component.get('SUMMARY', ''))
+        start_date = _event_start_date(component)
+        date_text = start_date.isoformat() if start_date is not None else 'unknown'
         if title:
-            logger.debug('[%s] %s event title: %s', calendar_name, verb, title)
+            logger.debug(
+                '[%s] %s event title: %s (date: %s)',
+                calendar_name, verb, title, date_text,
+            )
         else:
-            logger.debug('[%s] %s event %s has no title', calendar_name, verb, uid)
+            logger.debug(
+                '[%s] %s event %s has no title (date: %s)',
+                calendar_name, verb, uid, date_text,
+            )
         return
 
 
