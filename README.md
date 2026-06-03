@@ -143,7 +143,26 @@ Docker Compose reads `.env` automatically and passes the variables into the
 container. To build the image locally instead of pulling from GHCR, swap the
 `image:` line in `docker-compose.yml` for the commented-out `build: .` line.
 
+### 6 — Pick a pinned image version in production
+
+Published images are semantically versioned (`X.Y.Z`) and pushed with matching
+floating tags (`X.Y`, `X`, and `latest`).
+
+For production, pin `docker-compose.yml` to an explicit immutable release tag:
+
+```yaml
+image: ghcr.io/johannrichard/caldav-automata:1.2.3
+```
+
 ---
+
+## Docker image publishing and retention
+
+- Images are published from `.github/workflows/docker-publish.yml`.
+- Release pushes use git tags in the form `vX.Y.Z`.
+- Manual workflow dispatch accepts `X.Y.Z` or `vX.Y.Z`.
+- After each publish, GHCR housekeeping runs and keeps only the latest 5 image
+  versions for this package.
 
 ## Rule language
 
