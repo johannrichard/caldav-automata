@@ -164,6 +164,8 @@ image: ghcr.io/johannrichard/caldav-automata:1.2.3
 - Images are published from `.github/workflows/docker-publish.yml`.
 - Releases are triggered by pushes to tags matching `v*.*.*`, and the workflow
   only accepts strict `X.Y.Z` versions at runtime.
+- PR merges into `master` also publish an image (`latest`, `master`, and
+  short-commit-SHA tag).
 - Manual workflow dispatch accepts strict `X.Y.Z` with optional `v` prefix.
 - After each publish, GHCR housekeeping prunes old releases and keeps only the
   latest 5 image versions for this package.
