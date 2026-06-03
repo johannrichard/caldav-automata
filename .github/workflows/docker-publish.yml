@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - "v*.*.*"
+  pull_request:
+    branches:
+      - master
+    types:
+      - closed
   workflow_dispatch:
     inputs:
       image_version:
@@ -17,6 +22,7 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.merged == true }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -34,10 +40,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve semantic version
-        id: version
+      - name: Resolve publish tags
+        id: publish
         shell: bash
         run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            {
+              echo "tags<<EOF"
+              echo "type=raw,value=latest"
+              echo "type=sha,format=short"
+              echo "type=raw,value=master"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             RAW_VERSION="${{ github.event.inputs.image_version }}"
           else
@@ -55,20 +72,21 @@ jobs:
           MINOR="${BASH_REMATCH[2]}"
           PATCH="${BASH_REMATCH[3]}"
 
-          echo "version=${MAJOR}.${MINOR}.${PATCH}" >> "$GITHUB_OUTPUT"
-          echo "major=${MAJOR}" >> "$GITHUB_OUTPUT"
-          echo "minor=${MINOR}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "type=raw,value=${MAJOR}.${MINOR}.${PATCH}"
+            echo "type=raw,value=${MAJOR}.${MINOR}"
+            echo "type=raw,value=${MAJOR}"
+            echo "type=raw,value=latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=${{ steps.version.outputs.version }}
-            type=raw,value=${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}
-            type=raw,value=${{ steps.version.outputs.major }}
-            type=raw,value=latest
+          tags: ${{ steps.publish.outputs.tags }}
 
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
