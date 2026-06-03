@@ -9,7 +9,7 @@ services:
     volumes:
       - caldav-state:/data          # persists state.json across restarts
       - ./rules:/rules:ro           # LISP rule files (hot-reloaded every cycle)
-      - ./config:/config:ro         # calendars.yml configuration
+      - ./config:/config:ro         # calendar.yaml configuration
     restart: unless-stopped
 
 volumes:

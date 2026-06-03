@@ -93,6 +93,8 @@ def _load_all_rules(rules_dir: str) -> list[Rule]:
     rules: list[Rule] = []
     pattern = os.path.join(rules_dir, '**', '*.lisp')
     for path in sorted(glob_module.glob(pattern, recursive=True)):
+        if path.endswith('.example.lisp'):
+            continue
         try:
             loaded = load_rules(path)
             rules.extend(loaded)

@@ -2,7 +2,7 @@
 CalDAV Automata — entry point.
 
 Loads configuration from the file pointed at by the CONFIG_FILE environment
-variable (default: /config/calendars.yml) and starts the polling daemon.
+variable (default: /config/calendar.yaml) and starts the polling daemon.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ logging.basicConfig(
 
 
 def main() -> None:
-    config_file = os.environ.get('CONFIG_FILE', '/config/calendars.yml')
+    config_file = os.environ.get('CONFIG_FILE', '/config/calendar.yaml')
     try:
         config = load_config(config_file)
     except FileNotFoundError:
