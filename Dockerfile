@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="CalDAV Automata" \
-      org.opencontainers.image.description="CalDAV proxy with a LISP rule engine" \
+      org.opencontainers.image.description="CalDAV polling daemon with a LISP rule engine" \
       org.opencontainers.image.source="https://github.com/johannrichard/caldav-automata"
 
 WORKDIR /app
@@ -12,17 +12,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
 COPY caldav_automata/ ./caldav_automata/
-COPY config/           ./config/
-COPY entrypoint.sh     ./entrypoint.sh
 
-# Prepare runtime directories and copy default Radicale config
-RUN chmod +x entrypoint.sh \
- && mkdir -p /data/collections /rules /etc/radicale \
- && cp config/radicale.cfg /etc/radicale/config
+# Runtime directories (overridden by Docker volumes in production)
+RUN mkdir -p /data /rules /config
 
-# Proxy port — CalDAV clients connect here
-EXPOSE 5232
+# /data  — persistent state (state.json)
+# /rules — LISP rule files (hot-reloaded every cycle)
+# /config — calendars.yml configuration
+VOLUME ["/data", "/rules", "/config"]
 
-VOLUME ["/data", "/rules"]
-
-ENTRYPOINT ["./entrypoint.sh"]
+CMD ["python", "-m", "caldav_automata.main"]

@@ -1,217 +1,237 @@
 # CalDAV Automata
 
-A lightweight CalDAV server with a built-in rule engine.  You drop it into a Docker container, point your calendar app at it, and write small LISP snippets that run whenever events are created or updated — adding attendees, setting reminders, or anything else you need to happen automatically.
+A lightweight Docker daemon that watches your CalDAV calendars — including
+Apple iCloud — and automatically applies small LISP-defined rules whenever
+events are created or updated by *any* client or user.
 
-Works with Apple Calendar on iOS and macOS, and with any CalDAV-compliant client.
+No proxy required. No server port exposed. Just connect your calendar apps
+directly to iCloud (or any CalDAV server) as usual, and let CalDAV Automata
+handle the automation in the background.
 
 ---
 
 ## How it works
 
-CalDAV Automata runs two processes in a single container:
-
-1. **Radicale** — a well-established, standards-compliant CalDAV/WebDAV server that stores your calendars on disk.
-2. **A FastAPI proxy** — sits in front of Radicale, intercepts `PUT` requests (new and updated events), runs your LISP rules against each event, then forwards the (possibly modified) payload to Radicale.
-
-Everything else — `PROPFIND`, `REPORT`, `MKCALENDAR`, calendar listing, free-busy queries — passes through untouched.  Your calendar app never knows the rule engine is there.
+CalDAV Automata polls your CalDAV accounts on a configurable interval. For
+each calendar event it compares a cryptographic fingerprint (ETag) against a
+local state file. When it finds something new or changed it runs your rules,
+applies any actions (add attendees, set alerts, …), and writes the modified
+event back to the server. The next poll picks up the server-assigned ETag and
+the cycle becomes a no-op until the event changes again.
 
 ```
-Apple Calendar / any CalDAV client
-          │  CalDAV (HTTP :5232)
-          ▼
-  ┌─────────────────────────┐
-  │   CalDAV Automata proxy │  ← apply LISP rules on PUT
-  └────────────┬────────────┘
-               │  HTTP (127.0.0.1:5233)
-               ▼
-         ┌──────────┐
-         │ Radicale │  ← stores calendars on disk
-         └──────────┘
+┌───────────────────────────────────────┐
+│  Apple iCloud / any CalDAV server     │
+│                                       │
+│   Family calendar ──┐                 │
+│   Work calendar    ──┼──► poll (ETag) │
+│   …                ──┘                │
+└───────────────────────────────────────┘
+              │ new / changed?
+              ▼
+    ┌─────────────────────┐
+    │  LISP rules engine  │
+    │  rules/*.lisp       │
+    └─────────────────────┘
+              │ modified iCal
+              ▼
+    write back to CalDAV server
 ```
+
+Rules are hot-reloaded from the `/rules` directory on every poll cycle — no
+restart required.
 
 ---
 
 ## Quick start
 
-```bash
-git clone <repository-url>
-cd caldav-automata
-docker compose up --build
+### 1 — Create an App-Specific Password (iCloud)
+
+If you are connecting to iCloud you must use an
+[App-Specific Password](https://support.apple.com/en-gb/HT204397), not your
+regular Apple ID password. Create one at
+<https://appleid.apple.com/account/manage>.
+
+### 2 — Configure your calendars
+
+Copy the example config and fill in your details:
+
+```sh
+cp config/calendars.yml config/my-calendars.yml
 ```
 
-The server starts on port **5232**.  Edit `rules/example.lisp` (mounted read-only into the container) and your changes take effect on the very next event write — no restart needed.
+```yaml
+# config/calendars.yml
+poll_interval: 30          # seconds between poll cycles
+rules_dir: /rules          # path inside the container
+state_file: /data/state.json
+
+accounts:
+  - name: "iCloud"
+    url: "https://caldav.icloud.com/"
+    username: "you@icloud.com"
+    password: "${ICLOUD_PASSWORD}"   # resolved from environment
+    calendars:
+      - "Family"
+      - "Work"
+```
+
+Calendar names support `fnmatch` wildcards. Use `["*"]` to watch every
+calendar on an account.
+
+### 3 — Write your first rule
+
+Create a `.lisp` file anywhere inside `./rules/`:
+
+```lisp
+; rules/family.lisp
+(rule
+  (calendars "Family")
+
+  (on-create
+    (add-attendee "partner@example.com")
+    (set-alert 15 "DISPLAY"))
+
+  (on-update
+    (add-attendee "partner@example.com")))
+```
+
+Rules are composable: a single `.lisp` file can contain multiple `rule`
+blocks, and any number of files can live in the `rules/` directory.
+
+### 4 — Start the daemon
+
+```sh
+ICLOUD_PASSWORD=your-app-specific-password docker compose up -d
+```
 
 ---
 
-## Connect Apple Calendar
+## Rule language
 
-### macOS
+Rules are written in a simple S-expression dialect (LISP). Each rule
+specifies which calendars it applies to and what actions to run when an
+event is created or updated.
 
-1. Open **Calendar → Settings → Accounts → Add Account → Other CalDAV account**.
-2. Set **Account type** to *Manual*.
-3. Fill in:
-   | Field | Value |
-   |---|---|
-   | Username | *(any name, e.g. `me`)* |
-   | Password | *(leave blank if auth is disabled)* |
-   | Server address | `http://your-server:5232` |
-4. Click **Sign In**.  Your calendars appear within a few seconds.
-
-### iOS
-
-1. Go to **Settings → Calendar → Accounts → Add Account → Other → Add CalDAV account**.
-2. Enter the same server address, username, and password as above.
-
-> **Tip:** Radicale auto-creates a personal calendar collection the first time you connect.  You can also create additional calendars directly from the Calendar app, or with any WebDAV client.
-
----
-
-## Writing rules
-
-Rules live in `rules/` and use a small LISP dialect.  Files are re-read on every event write, so you can iterate without restarting the container.
-
-### Rule shape
+### Structure
 
 ```lisp
 (rule
-  (when
-    (calendar "Calendar Name"))   ; which calendar(s) to match
-  (on-create                      ; runs when a new event is saved
-    <action> ...)
-  (on-update                      ; runs when an existing event is saved
-    <action> ...))
+  (calendars <name> …)   ; one or more calendar names; omit to match all
+
+  (on-create             ; actions that run when a new event appears
+    <action> …)
+
+  (on-update             ; actions that run when an existing event changes
+    <action> …))
 ```
 
-`(when ...)` accepts multiple `(calendar ...)` clauses — they are OR-ed together.  Use `"*"` to match every calendar.
+### Actions
 
-### Available actions
-
-#### `add-attendee`
-
-```lisp
-(add-attendee "email@example.com" "Full Name")
-```
-
-Adds the person as a `NEEDS-ACTION / REQ-PARTICIPANT` attendee.  Safe to use in `on-update` — the attendee is never added twice.
-
-#### `set-alert`
-
-```lisp
-(set-alert <minutes> "DISPLAY"|"EMAIL" "Optional description")
-```
-
-Attaches a `VALARM` component to the event.  If an alarm of the same type already exists it is replaced, so the rule stays idempotent across edits.
-
-`<minutes>` is how many minutes *before* the event start to trigger the alarm.
+| Action | Description |
+|---|---|
+| `(add-attendee "email@example.com")` | Add an attendee to the event (idempotent) |
+| `(set-alert <minutes> "<type>")` | Add or replace an alert. Type is `DISPLAY`, `EMAIL`, or `AUDIO` |
 
 ### Examples
 
 ```lisp
-; 15-minute reminder on every new event, in every calendar
+; Invite a colleague to every new Work event and set a 30-minute alert.
 (rule
-  (when
-    (calendar "*"))
+  (calendars "Work")
   (on-create
-    (set-alert 15 "DISPLAY" "Reminder")))
+    (add-attendee "colleague@work.com")
+    (set-alert 30 "DISPLAY")))
 
-
-; Invite the whole family to "Family" calendar events
+; Notify a family group for any calendar that starts with "Family".
 (rule
-  (when
-    (calendar "Family"))
+  (calendars "Family*")
   (on-create
-    (add-attendee "partner@example.com" "Partner")
-    (add-attendee "child@example.com" "Child")
-    (set-alert 60 "DISPLAY" "Family event coming up")))
-
-
-; 30-minute work reminder, and keep attendees topped up on edits
-(rule
-  (when
-    (calendar "Work"))
-  (on-create
-    (set-alert 30 "DISPLAY" "Work reminder"))
+    (add-attendee "family-group@example.com")
+    (set-alert 10 "DISPLAY"))
   (on-update
-    (add-attendee "manager@example.com" "Manager")))
-```
+    (add-attendee "family-group@example.com")))
 
-Comments start with `;` and run to the end of the line.
+; Set a default alert on every new event regardless of calendar.
+(rule
+  (on-create
+    (set-alert 15 "DISPLAY")))
+```
 
 ---
 
-## Configuration
+## Configuration reference
 
-### Authentication
+| Key | Default | Description |
+|---|---|---|
+| `poll_interval` | `30` | Seconds between poll cycles |
+| `rules_dir` | `/rules` | Directory scanned for `*.lisp` rule files |
+| `state_file` | `/data/state.json` | ETag state persistence file |
+| `accounts` | *(required)* | List of CalDAV account objects |
 
-By default Radicale runs with no authentication.  To enable password protection:
+**Account object**
 
-1. Generate an `htpasswd` file:
+| Key | Description |
+|---|---|
+| `name` | Display name used in log output |
+| `url` | CalDAV base URL (e.g. `https://caldav.icloud.com/`) |
+| `username` | Account username / Apple ID |
+| `password` | Account password or `${ENV_VAR}` reference |
+| `calendars` | List of calendar display-names to watch; supports wildcards; `["*"]` watches all |
 
-   ```bash
-   # Using htpasswd (from Apache httpd-tools)
-   htpasswd -B config/htpasswd myusername
+---
 
-   # Or with Python only
-   python3 -c "
-   import bcrypt, getpass, sys
-   user = input('Username: ')
-   pw   = getpass.getpass()
-   print(user + ':' + bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode())
-   " >> config/htpasswd
-   ```
+## Docker volumes
 
-2. Edit `config/radicale.cfg`:
+| Volume | Purpose |
+|---|---|
+| `/data` | Persistent state file (`state.json`) — mount a named volume |
+| `/rules` | LISP rule files — mount read-only from your project |
+| `/config` | Configuration directory — mount read-only |
 
-   ```ini
-   [auth]
-   type                = htpasswd
-   htpasswd_filename   = /etc/radicale/htpasswd
-   htpasswd_encryption = bcrypt
-   ```
+---
 
-3. Mount the file in `docker-compose.yml`:
-
-   ```yaml
-   volumes:
-     - ./config/htpasswd:/etc/radicale/htpasswd:ro
-   ```
-
-4. Restart the container.
-
-> `config/htpasswd` is excluded from version control via `.gitignore`.  Never commit credential files.
-
-### Environment variables
+## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `PROXY_PORT` | `5232` | Port the CalDAV proxy listens on |
-| `LOG_LEVEL` | `info` | Logging verbosity (`debug`, `info`, `warning`, `error`) |
-| `RULES_DIR` | `/rules` | Directory scanned (recursively) for `*.lisp` rule files |
-| `RADICALE_URL` | `http://127.0.0.1:5233` | Internal Radicale base URL |
-
-### Persistent storage
-
-Calendar data is stored in the `caldav-data` Docker volume (mapped to `/data/collections` inside the container).  Back it up like any ordinary directory.
+| `CONFIG_FILE` | `/config/calendars.yml` | Path to the configuration file |
+| `LOG_LEVEL` | `INFO` | Python logging level (`DEBUG`, `INFO`, `WARNING`, …) |
+| Any `${VAR}` used in the config | — | Expanded at load time from the container environment |
 
 ---
 
-## Development
+## Compatible CalDAV servers
 
-```bash
-# Install dependencies into a virtual environment
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+- **Apple iCloud** — uses App-Specific Passwords; principal discovery is
+  handled automatically.
+- **Nextcloud** — use the CalDAV URL shown in the *Settings › Personal info*
+  section.
+- **Baikal**, **Radicale**, **DAViCal**, **Fastmail**, and any other
+  CalDAV-compliant server.
 
-# Run Radicale separately (adjust the config path as needed)
-radicale --config config/radicale.cfg &
+---
 
-# Run the proxy with live reload
-RADICALE_URL=http://127.0.0.1:5233 RULES_DIR=rules \
-  uvicorn caldav_automata.main:app --reload --port 5232
+## Project layout
+
+```
+caldav_automata/
+  __init__.py     package init
+  config.py       YAML config loader with ${ENV_VAR} expansion
+  daemon.py       polling daemon — ETag tracking, rule dispatch, write-back
+  lisp.py         S-expression parser and rule compiler
+  actions.py      add-attendee, set-alert, and other action handlers
+  main.py         entry point (python -m caldav_automata.main)
+config/
+  calendars.yml   example configuration
+rules/
+  example.lisp    starter rule set
+Dockerfile        single-process container image
+docker-compose.yml  example Compose deployment
 ```
 
 ---
 
-## License
+## Licence
 
 MIT — see [LICENSE](LICENSE).
