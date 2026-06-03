@@ -148,21 +148,25 @@ container. To build the image locally instead of pulling from GHCR, swap the
 Published images are semantically versioned (`X.Y.Z`) and pushed with matching
 floating tags (`X.Y`, `X`, and `latest`).
 
-For production, pin `docker-compose.yml` to an explicit immutable release tag:
+For production, pin `docker-compose.yml` to an explicit release tag:
 
 ```yaml
 image: ghcr.io/johannrichard/caldav-automata:1.2.3
 ```
+
+> Note: GHCR retention keeps only the 5 most recent releases, so older pinned
+> tags are eventually pruned.
 
 ---
 
 ## Docker image publishing and retention
 
 - Images are published from `.github/workflows/docker-publish.yml`.
-- Releases are triggered by pushes to git tags in the form `vX.Y.Z`.
-- Manual workflow dispatch accepts `X.Y.Z` or `vX.Y.Z`.
-- After each publish, GHCR housekeeping runs and keeps only the latest 5 image
-  versions for this package.
+- Releases are triggered by pushes to tags matching `v*.*.*`, and the workflow
+  only accepts strict `X.Y.Z` versions at runtime.
+- Manual workflow dispatch accepts strict `X.Y.Z` with optional `v` prefix.
+- After each publish, GHCR housekeeping prunes old releases and keeps only the
+  latest 5 image versions for this package.
 
 ## Rule language
 

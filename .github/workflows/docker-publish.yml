@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       image_version:
-        description: Semantic version to publish (for example 1.2.3 or v1.2.3)
+        description: Release version to publish (strict X.Y.Z, with optional v prefix)
         required: true
 
 permissions:
@@ -46,8 +46,8 @@ jobs:
 
           RAW_VERSION="${RAW_VERSION#v}"
 
-          if [[ ! "${RAW_VERSION}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            echo "Invalid semantic version: ${RAW_VERSION}. Expected format: X.Y.Z"
+          if [[ ! "${RAW_VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Invalid release version: ${RAW_VERSION}. Expected strict format: X.Y.Z"
             exit 1
           fi
 
@@ -86,11 +86,17 @@ jobs:
     permissions:
       packages: write
     steps:
-      - name: Keep only the latest 5 package versions
+      - name: Resolve package name
+        id: package
+        shell: bash
+        run: echo "name=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Keep only the latest 5 released image versions
         uses: actions/delete-package-versions@v5
         with:
           owner: ${{ github.repository_owner }}
-          package-name: caldav-automata
+          package-name: ${{ steps.package.outputs.name }}
           package-type: container
+          # Keep this value in sync with README.md ("Docker image publishing and retention").
           min-versions-to-keep: 5
           delete-only-untagged-versions: false
