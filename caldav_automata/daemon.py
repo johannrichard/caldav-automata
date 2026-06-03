@@ -19,6 +19,27 @@ survives restarts.  The decision tree per event is:
 After a successful write-back the server issues a fresh ETag; the daemon
 reads it from the response and stores it so the next poll is a no-op.
 
+Self-write avoidance
+--------------------
+When the daemon writes a modified event back to the server, the server
+assigns a new ETag.  If the CalDAV library can retrieve that ETag from
+the PUT response, it is stored immediately and the next poll sees no
+change — all is well.
+
+If the server does not return the new ETag in the response the daemon
+falls back to the *old* ETag.  The next poll would then see a mismatched
+ETag and — without any guard — re-process the event the daemon itself
+just wrote, potentially looping.
+
+To prevent this the daemon maintains an in-memory set of URLs it wrote
+in the current process lifetime (``_EventState._self_written``).  When a
+poll cycle encounters a changed ETag for a URL in that set it knows the
+change was self-caused, skips rule evaluation, updates the stored ETag
+to the current one, and clears the entry.  The set is intentionally
+not persisted: on a cold restart the daemon will process every event
+once (applying rules is idempotent for already-correct events), then
+settle into no-op cycles.
+
 Multiple accounts / calendars
 ------------------------------
 Each entry under ``accounts:`` in the configuration file is polled
@@ -59,6 +80,9 @@ class _EventState:
     def __init__(self, path: str) -> None:
         self._path = Path(path)
         self._data: dict[str, str] = {}
+        # In-memory set of URLs written by this process; used to skip the
+        # apparent ETag change caused by our own write-back (see module docs).
+        self._self_written: set[str] = set()
         self._load()
 
     def _load(self) -> None:
@@ -84,6 +108,15 @@ class _EventState:
 
     def is_known(self, url: str) -> bool:
         return url in self._data
+
+    def mark_self_written(self, url: str) -> None:
+        self._self_written.add(url)
+
+    def is_self_written(self, url: str) -> bool:
+        return url in self._self_written
+
+    def clear_self_written(self, url: str) -> None:
+        self._self_written.discard(url)
 
 
 # ---------------------------------------------------------------------------
@@ -171,36 +204,27 @@ def _matches(
     return True
 
 
-def _debug_log_event_title(calendar_name: str, verb: str, uid: str, raw_ical: str) -> None:
-    if not logger.isEnabledFor(logging.DEBUG):
-        return
+def _get_event_info(raw_ical: str) -> tuple[str, str]:
+    """Return *(title, date_str)* for the first VEVENT in *raw_ical*.
 
+    Both values are safe to use in log messages.  *date_str* is an
+    ISO-8601 date string or ``'unknown'`` when the start date cannot be
+    determined.
+    """
     try:
         cal = Calendar.from_ical(raw_ical)
     except Exception:
-        logger.debug(
-            '[%s] Could not parse event title/date for %s event %s',
-            calendar_name, verb, uid,
-        )
-        return
+        return '', 'unknown'
 
     for component in cal.walk():
         if component.name != 'VEVENT':
             continue
         title = str(component.get('SUMMARY', ''))
         start_date = _event_start_date(component)
-        date_text = start_date.isoformat() if start_date is not None else 'unknown'
-        if title:
-            logger.debug(
-                '[%s] %s event title: %s (date: %s)',
-                calendar_name, verb, title, date_text,
-            )
-        else:
-            logger.debug(
-                '[%s] %s event %s has no title (date: %s)',
-                calendar_name, verb, uid, date_text,
-            )
-        return
+        date_str = start_date.isoformat() if start_date is not None else 'unknown'
+        return title, date_str
+
+    return '', 'unknown'
 
 
 # ---------------------------------------------------------------------------
@@ -296,8 +320,25 @@ def _poll_calendar(
 
         verb = 'new' if is_new else 'updated'
         uid = url.rstrip('/').split('/')[-1]
-        logger.info('[%s] %s event detected: %s', cal_name, verb, uid)
-        _debug_log_event_title(cal_name, verb, uid, event.data)
+        title, date_str = _get_event_info(event.data)
+
+        # Self-write guard: if we wrote this event ourselves in this process
+        # lifetime and its ETag now looks changed, the change is self-caused.
+        # Update the stored ETag and skip re-processing.
+        if state.is_self_written(url):
+            state.clear_self_written(url)
+            state.set_etag(url, etag)
+            logger.debug(
+                '[%s] Skipping self-modified event (ETag refreshed): %s',
+                cal_name, uid,
+            )
+            continue
+
+        if title:
+            logger.info('[%s] %s event: "%s" (%s)', cal_name, verb, title, date_str)
+        else:
+            logger.info('[%s] %s event (date: %s)', cal_name, verb, date_str)
+        logger.debug('[%s] %s event detected: %s', cal_name, verb, uid)
 
         modified_ical = _apply_rules(event.data, cal_name, is_new, rules)
 
@@ -306,8 +347,22 @@ def _poll_calendar(
                 event.data = modified_ical
                 event.save()
                 new_etag = _normalise_etag(getattr(event, 'etag', None))
-                state.set_etag(url, new_etag or etag)
-                logger.info('[%s] Wrote back modified event: %s', cal_name, uid)
+                if new_etag:
+                    state.set_etag(url, new_etag)
+                else:
+                    # Server did not return the new ETag in the response.
+                    # Store the pre-write ETag as a placeholder and mark
+                    # this URL so the next poll skips the apparent change.
+                    state.set_etag(url, etag)
+                    state.mark_self_written(url)
+                if title:
+                    logger.info(
+                        '[%s] Wrote back modified event: "%s" (%s)',
+                        cal_name, title, date_str,
+                    )
+                else:
+                    logger.info('[%s] Wrote back modified event (date: %s)', cal_name, date_str)
+                logger.debug('[%s] Wrote back modified event: %s', cal_name, uid)
                 saved += 1
             except Exception:
                 logger.exception('Failed to save event %s in calendar %r', uid, cal_name)
