@@ -35,16 +35,16 @@ def _normalise_email(value: str) -> str:
     return str(value).strip().lower().removeprefix('mailto:')
 
 
-def _sent_by_email(value) -> str:
+def _sent_by_email(value) -> str | None:
     """Return normalised SENT-BY value from an iCal property, if present."""
     sent_by = getattr(value, 'params', {}).get('SENT-BY')
     if not sent_by:
-        return ''
+        return None
     return _normalise_email(str(sent_by))
 
 
 def _sender_emails(event) -> set[str]:
-    """Return sender addresses from ORGANIZER/ATTENDEE SENT-BY metadata."""
+    """Return sender addresses from organizer and SENT-BY metadata."""
     senders: set[str] = set()
 
     organizer = event.get('organizer')
@@ -63,7 +63,7 @@ def _sender_emails(event) -> set[str]:
             if sent_by:
                 senders.add(sent_by)
 
-    return {email for email in senders if email}
+    return senders
 
 
 # ---------------------------------------------------------------------------
