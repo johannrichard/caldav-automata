@@ -28,6 +28,13 @@ data/
 # Secrets — never commit real credentials
 config/htpasswd
 !config/htpasswd.example
+config/calendar.yaml
+!config/calendar.example.yaml
+
+# Local rules — keep only the shipped example in git
+rules/**
+!rules/
+!rules/example.lisp.example
 
 # Environment file — contains secrets; use .env.example as the committed template
 .env

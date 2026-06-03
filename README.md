@@ -71,11 +71,17 @@ ICLOUD_PASSWORD=your-app-specific-password-here
 
 ### 3 — Configure your calendars
 
-Edit `config/calendars.yml` with your iCloud address and the calendar names
-you want to watch:
+Copy the template and edit your real config file:
+
+```sh
+cp config/calendar.example.yaml config/calendar.yaml
+```
+
+Then edit `config/calendar.yaml` with your iCloud address and the calendar
+names you want to watch:
 
 ```yaml
-# config/calendars.yml
+# config/calendar.yaml
 poll_interval: 30          # seconds between poll cycles
 rules_dir: /rules          # path inside the container
 state_file: /data/state.json
@@ -95,7 +101,14 @@ calendar on an account.
 
 ### 4 — Write your first rule
 
-Create a `.lisp` file anywhere inside `./rules/`:
+Copy the rules template, then create your real `.lisp` rule files:
+
+```sh
+cp rules/example.lisp.example rules/my-rules.lisp
+```
+
+Only `*.lisp` files are loaded at runtime; `*.example.lisp` files are ignored.
+Create additional `.lisp` files anywhere inside `./rules/`:
 
 ```lisp
 ; rules/family.lisp
@@ -250,7 +263,7 @@ types are AND'd.  A condition type that is omitted matches everything.
 
 | Variable | Default | Description |
 |---|---|---|
-| `CONFIG_FILE` | `/config/calendars.yml` | Path to the configuration file |
+| `CONFIG_FILE` | `/config/calendar.yaml` | Path to the configuration file |
 | `LOG_LEVEL` | `INFO` | Python logging level (`DEBUG`, `INFO`, `WARNING`, …) |
 | Any `${VAR}` used in the config | — | Expanded at load time from the container environment |
 
@@ -278,9 +291,9 @@ caldav_automata/
   actions.py      add-attendee, set-alert, and other action handlers
   main.py         entry point (python -m caldav_automata.main)
 config/
-  calendars.yml   example configuration
+  calendar.example.yaml   example configuration template (not loaded)
 rules/
-  example.lisp    starter rule set
+  example.lisp.example    starter rule template (not loaded)
 Dockerfile        single-process container image
 docker-compose.yml  example Compose deployment
 ```
