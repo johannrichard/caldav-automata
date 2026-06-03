@@ -27,12 +27,20 @@ def _attendee_emails(event) -> set[str]:
         return set()
     if not isinstance(prop, list):
         prop = [prop]
-    return {str(a).lower().removeprefix('mailto:') for a in prop}
+    return {_normalise_email(str(a)) for a in prop}
 
 
 def _normalise_email(value: str) -> str:
     """Normalise e-mail URI/addresses for case-insensitive comparison."""
     return str(value).strip().lower().removeprefix('mailto:')
+
+
+def _sent_by_email(value) -> str:
+    """Return normalised SENT-BY value from an iCal property, if present."""
+    sent_by = getattr(value, 'params', {}).get('SENT-BY')
+    if not sent_by:
+        return ''
+    return _normalise_email(str(sent_by))
 
 
 def _sender_emails(event) -> set[str]:
@@ -42,18 +50,18 @@ def _sender_emails(event) -> set[str]:
     organizer = event.get('organizer')
     if organizer is not None:
         senders.add(_normalise_email(str(organizer)))
-        sent_by = getattr(organizer, 'params', {}).get('SENT-BY')
+        sent_by = _sent_by_email(organizer)
         if sent_by:
-            senders.add(_normalise_email(str(sent_by)))
+            senders.add(sent_by)
 
     attendees = event.get('attendee')
     if attendees is not None:
         if not isinstance(attendees, list):
             attendees = [attendees]
         for attendee in attendees:
-            sent_by = getattr(attendee, 'params', {}).get('SENT-BY')
+            sent_by = _sent_by_email(attendee)
             if sent_by:
-                senders.add(_normalise_email(str(sent_by)))
+                senders.add(sent_by)
 
     return {email for email in senders if email}
 
