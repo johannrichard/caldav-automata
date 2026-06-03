@@ -34,7 +34,7 @@ Apple Calendar / any CalDAV client
 ## Quick start
 
 ```bash
-git clone https://github.com/johannrichard/caldav-automata.git
+git clone <repository-url>
 cd caldav-automata
 docker compose up --build
 ```
