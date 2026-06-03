@@ -262,7 +262,7 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
     # calendar-home-set via PROPFIND, which is what client.principal() does.
     # Pass ssl_verify_cert, auth_type, or headers in the account config to
     # customise the connection when needed.
-    client_kwargs: dict = {}
+    client_kwargs: dict[str, Any] = {}
     if 'ssl_verify_cert' in account:
         client_kwargs['ssl_verify_cert'] = account['ssl_verify_cert']
     if 'auth_type' in account:
