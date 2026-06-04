@@ -23,7 +23,7 @@ the cycle becomes a no-op until the event changes again.
 ┌───────────────────────────────────────┐
 │  Apple iCloud / any CalDAV server     │
 │                                       │
-│   Family calendar ──┐                 │
+│   Family calendar  ──┐                │
 │   Work calendar    ──┼──► poll (ETag) │
 │   …                ──┘                │
 └───────────────────────────────────────┘
