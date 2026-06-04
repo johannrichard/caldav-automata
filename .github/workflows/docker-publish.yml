@@ -6,9 +6,6 @@ on:
       release_tag:
         required: true
         type: string
-      build_version:
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -59,7 +56,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: BUILD_VERSION=${{ inputs.build_version }}
+          build-args: BUILD_VERSION=${{ inputs.release_tag }}
 
       - name: Attest Docker image provenance
         uses: actions/attest-build-provenance@v2

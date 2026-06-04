@@ -42,4 +42,3 @@ jobs:
     uses: ./.github/workflows/docker-publish.yml
     with:
       release_tag: ${{ needs.release.outputs.tag }}
-      build_version: ${{ needs.release.outputs.tag }}
