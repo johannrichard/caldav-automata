@@ -22,6 +22,9 @@ logging.basicConfig(
 
 
 def main() -> None:
+    version = os.environ.get('APP_VERSION', 'dev')
+    logging.info('CalDAV Automata %s starting', version)
+
     config_file = os.environ.get('CONFIG_FILE', '/config/calendar.yaml')
     try:
         config = load_config(config_file)

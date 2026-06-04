@@ -4,6 +4,9 @@ LABEL org.opencontainers.image.title="CalDAV Automata" \
       org.opencontainers.image.description="CalDAV polling daemon with a LISP rule engine" \
       org.opencontainers.image.source="https://github.com/johannrichard/caldav-automata"
 
+ARG BUILD_VERSION=dev
+ENV APP_VERSION=${BUILD_VERSION}
+
 WORKDIR /app
 
 # Install Python dependencies first for better layer caching
