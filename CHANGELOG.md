@@ -1,6 +1,27 @@
 # CHANGELOG
 
 
+## v0.3.0 (2026-06-04)
+
+### Features
+
+- Log release version at startup
+  ([`3e42a60`](https://github.com/johannrichard/caldav-automata/commit/3e42a60129c708666d6af684cd3e5e6e21a903ff))
+
+- Merge pull request #10 from johannrichard/copilot/log-release-version-on-startup
+  ([`0477ead`](https://github.com/johannrichard/caldav-automata/commit/0477ead1a39db11b7d7ca87d8b222a36df22bd00))
+
+feat: log release version at startup
+
+
+## v0.2.0 (2026-06-04)
+
+### Continuous Integration
+
+- Trigger docker publish on release.published
+  ([`11457c5`](https://github.com/johannrichard/caldav-automata/commit/11457c58a9781ae6774bea5e23102c1119a68482))
+
+
 ## v0.1.0 (2026-06-03)
 
 ### Bug Fixes
