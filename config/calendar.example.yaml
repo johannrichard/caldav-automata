@@ -16,12 +16,15 @@ accounts:
   # PROPFIND — no need to hard-code a personal path.
   #
   # You MUST use an App-Specific Password (not your Apple ID password).
-  # Create one at https://appleid.apple.com/account/manage and store it
-  # in an environment variable so it never appears in this file.
+  # Create one at https://appleid.apple.com/account/manage and prefer
+  # mounting it as a secret file so it never appears in this file or in
+  # the container environment.
   - name: "iCloud"
     url: "https://caldav.icloud.com/"
     username: "you@icloud.com"
-    password: "${ICLOUD_PASSWORD}"
+    password_file: "/run/secrets/icloud_password"
+    # Or fall back to an environment variable:
+    # password: "${ICLOUD_PASSWORD}"
     # List specific calendar display-names to watch, or use ["*"] for all.
     calendars:
       - "Family"
@@ -37,6 +40,8 @@ accounts:
   # - name: "Nextcloud"
   #   url: "https://nextcloud.example.com/remote.php/dav/"
   #   username: "alice"
-  #   password: "${NEXTCLOUD_PASSWORD}"
+  #   password_file: "/run/secrets/nextcloud_password"
+  #   # Or:
+  #   # password: "${NEXTCLOUD_PASSWORD}"
   #   calendars:
   #     - "*"            # watch every calendar on this account

@@ -38,3 +38,6 @@ rules/**
 
 # Environment file — contains secrets; use .env.example as the committed template
 .env
+
+# Local secret files for Docker Compose / mounted secret injection
+secrets/

@@ -5,7 +5,11 @@ services:
     image: ghcr.io/johannrichard/caldav-automata:latest
     # build: .
     # No ports — the daemon connects outward to CalDAV servers; nothing listens here.
-    env_file: .env          # copy .env.example → .env and fill in your secrets
+    # Preferred: mount secrets as files and reference them with password_file in /config/calendar.yaml.
+    secrets:
+      - icloud_password
+    # Optional fallback for env-var based secrets:
+    # env_file: .env
     volumes:
       - caldav-state:/data          # persists state.json across restarts
       - ./rules:/rules:ro           # LISP rule files (hot-reloaded every cycle)
@@ -14,3 +18,7 @@ services:
 
 volumes:
   caldav-state:
+
+secrets:
+  icloud_password:
+    file: ./secrets/icloud_password.txt

@@ -1,0 +1,45 @@
+name: Validate commit messages
+
+on:
+  push:
+    branches:
+      - "**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Collect pushed commits
+        run: |
+          python - <<'PY' "$GITHUB_EVENT_PATH" > /tmp/commit-shas.txt
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              event = json.load(handle)
+
+          for commit in event.get("commits", []):
+              if commit.get("distinct", True):
+                  print(commit["id"])
+          PY
+
+      - name: Validate pushed commit messages
+        run: |
+          if [ ! -s /tmp/commit-shas.txt ]; then
+            echo "No distinct commits to validate."
+            exit 0
+          fi
+
+          xargs python scripts/validate_commit_messages.py < /tmp/commit-shas.txt
