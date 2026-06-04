@@ -1,6 +1,28 @@
 # CHANGELOG
 
 
+## v0.5.1 (2026-06-04)
+
+### Bug Fixes
+
+- :patch: README.mda
+  ([`b091722`](https://github.com/johannrichard/caldav-automata/commit/b091722433d0aea2f6958e7fb0da3b4fdb8e3dd4))
+
+
+## v0.5.0 (2026-06-04)
+
+### Continuous Integration
+
+- :hammer: tighten gitmoji validation
+  ([`aee903b`](https://github.com/johannrichard/caldav-automata/commit/aee903b9598c6b07cb50ac6a81c49aedddc647df))
+
+- :recycle: prepare for Railway
+  ([`2471bcd`](https://github.com/johannrichard/caldav-automata/commit/2471bcd7e29b2c373fdf23cc70b6eb4b411716e8))
+
+- :white_check_mark: enforce commit message format
+  ([`8c43580`](https://github.com/johannrichard/caldav-automata/commit/8c43580a5096b0751920c3612848dd1738f4815e))
+
+
 ## v0.4.0 (2026-06-04)
 
 ### Features
