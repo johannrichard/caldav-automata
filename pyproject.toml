@@ -11,3 +11,6 @@ version_toml = ["pyproject.toml:project.version"]
 upload_to_vcs_release = true
 upload_to_repository = false
 build_command = "echo 'Skipping package build'"
+
+[tool.semantic_release.commit_parser_options]
+patch_tags = ["fix", "perf", "build"]
