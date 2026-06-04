@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import os
 import re
-
 from pathlib import Path
 
 import yaml
@@ -31,7 +30,10 @@ def _expand(value: object) -> object:
 
 def _load_secret(path: str) -> str:
     """Load a secret from *path*, trimming only trailing newlines."""
-    return Path(path).read_text(encoding='utf-8').rstrip('\r\n')
+    try:
+        return Path(path).read_text(encoding='utf-8').rstrip('\r\n')
+    except OSError as exc:
+        raise OSError(f'Could not read password_file {path!r}: {exc}') from exc
 
 
 def _resolve_account_secrets(config: dict) -> dict:

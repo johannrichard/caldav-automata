@@ -59,7 +59,7 @@ instead of passing it through the container environment:
 
 ```sh
 mkdir -p secrets
-printf '%s\n' 'your-app-specific-password-here' > secrets/icloud_password.txt
+printf '%s' 'your-app-specific-password-here' > secrets/icloud_password.txt
 chmod 600 secrets/icloud_password.txt
 ```
 
