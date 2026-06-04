@@ -22,6 +22,6 @@ RUN mkdir -p /data /rules /config
 # /data  — persistent state (state.json)
 # /rules — LISP rule files (hot-reloaded every cycle)
 # /config — calendar.yaml configuration
-VOLUME ["/data", "/rules", "/config"]
+# VOLUME ["/data", "/rules", "/config"]
 
 CMD ["python", "-m", "caldav_automata.main"]
