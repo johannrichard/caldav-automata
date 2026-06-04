@@ -163,8 +163,9 @@ image: ghcr.io/johannrichard/caldav-automata:1.2.3
 
 - Release tags are created automatically on `main` by
   `.github/workflows/release.yml` using `python-semantic-release`.
-- Docker images are published from `.github/workflows/docker-publish.yml` when
-  a release is published (or when a `vX.Y.Z` tag is pushed).
+- Docker images are published from `.github/workflows/docker-publish.yml`
+  directly from the semantic release workflow, and only when semantic-release
+  actually creates a new release.
 - Docker tags are derived by `docker/metadata-action` semver rules
   (`X.Y.Z`, `X.Y`, `X`, and `latest`) without custom bash parsing.
 - Each published image also gets a GitHub artifact attestation pushed to GHCR.
