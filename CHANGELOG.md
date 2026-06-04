@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.5.2 (2026-06-04)
+
+### Build System
+
+- :construction: release on build commits
+  ([`de7af52`](https://github.com/johannrichard/caldav-automata/commit/de7af52a93c2229400e83225a5ad02280cbf57cb))
+
+- 🏗️ `linux/arm/v7` version
+  ([`e048faa`](https://github.com/johannrichard/caldav-automata/commit/e048faad9a08defb442396401189569621f36c58))
+
+Build an `ARM/v7` version too
+
+
 ## v0.5.1 (2026-06-04)
 
 ### Bug Fixes
