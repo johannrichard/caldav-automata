@@ -21,7 +21,7 @@ ALLOWED_TYPES = (
 )
 
 TYPE_PATTERN = "|".join(ALLOWED_TYPES)
-GITMOJI_PATTERN = r":[a-z0-9_+-]+:"
+GITMOJI_PATTERN = r":[a-z0-9_-]+:"
 SUBJECT_PATTERN = re.compile(
     rf"^(?P<type>{TYPE_PATTERN})(?P<breaking>!)?: "
     rf"(?P<gitmoji>{GITMOJI_PATTERN}) (?P<description>\S.*)$"
