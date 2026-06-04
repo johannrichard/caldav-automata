@@ -54,14 +54,23 @@ regular Apple ID password. Create one at
 
 ### 2 — Set up your secrets
 
-Copy the environment template and fill in your credentials:
+The recommended approach is to mount your password as a Docker secret file
+instead of passing it through the container environment:
+
+```sh
+mkdir -p secrets
+printf '%s\n' 'your-app-specific-password-here' > secrets/icloud_password.txt
+chmod 600 secrets/icloud_password.txt
+```
+
+> `./secrets/` is listed in `.gitignore` and will never be committed.
+
+If you prefer environment variables, the old `.env` flow still works:
 
 ```sh
 cp .env.example .env
-chmod 600 .env        # readable only by your user — keep it that way
+chmod 600 .env
 ```
-
-Open `.env` and replace the placeholder with your real password:
 
 ```sh
 ICLOUD_PASSWORD=your-app-specific-password-here
@@ -86,6 +95,19 @@ poll_interval: 30          # seconds between poll cycles
 rules_dir: /rules          # path inside the container
 state_file: /data/state.json
 
+accounts:
+  - name: "iCloud"
+    url: "https://caldav.icloud.com/"
+    username: "you@icloud.com"
+    password_file: "/run/secrets/icloud_password"
+    calendars:
+      - "Family"
+      - "Work"
+```
+
+If you prefer environment variables instead of a mounted secret file:
+
+```yaml
 accounts:
   - name: "iCloud"
     url: "https://caldav.icloud.com/"
@@ -139,9 +161,48 @@ blocks, and any number of files can live in the `rules/` directory.
 docker compose up -d
 ```
 
-Docker Compose reads `.env` automatically and passes the variables into the
-container. To build the image locally instead of pulling from GHCR, swap the
-`image:` line in `docker-compose.yml` for the commented-out `build: .` line.
+The shipped `docker-compose.yml` mounts `./secrets/icloud_password.txt` as the
+Docker secret `/run/secrets/icloud_password`, which matches the
+`password_file` example above. To build the image locally instead of pulling
+from GHCR, swap the `image:` line in `docker-compose.yml` for the commented-out
+`build: .` line.
+
+For additional accounts, add more entries under `secrets:` in
+`docker-compose.yml` and point each account's `password_file` at the matching
+`/run/secrets/...` path.
+
+### 5a — Docker Compose secret example
+
+```yaml
+services:
+  caldav-automata:
+    image: ghcr.io/johannrichard/caldav-automata:latest
+    secrets:
+      - icloud_password
+    volumes:
+      - caldav-state:/data
+      - ./rules:/rules:ro
+      - ./config:/config:ro
+
+secrets:
+  icloud_password:
+    file: ./secrets/icloud_password.txt
+```
+
+### 5b — Secret injection options
+
+- **Best default**: mount a secret file from Docker Compose, Docker Swarm,
+  Kubernetes, ECS, or another orchestrator and use `password_file`.
+- **Good with Proton Pass / `pass-cli`**: fetch the secret on the **host**
+  before `docker compose up`, write it into `./secrets/icloud_password.txt`,
+  then let Docker mount that file into the container.
+- **Not recommended**: run `pass-cli`, a desktop keychain helper, or similar
+  secret tooling *inside* the application container. That couples the image to a
+  specific secret provider, adds extra credentials or device state into the
+  container, and makes unattended restarts harder.
+- **If you need dynamic retrieval**: use a small sidecar or entrypoint wrapper
+  that writes a file into a mounted secret volume, then point `password_file`
+  at that file. Keep the main app unaware of the secret provider.
 
 ### 6 — Pick a pinned image version in production
 
