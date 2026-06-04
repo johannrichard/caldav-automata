@@ -1,6 +1,16 @@
 # CHANGELOG
 
 
+## v0.4.0 (2026-06-04)
+
+### Features
+
+- 🚀 Gate Docker publish on semantic-release release creation
+  ([`4e6a02e`](https://github.com/johannrichard/caldav-automata/commit/4e6a02ef7339220413a6469ef0e0f88a6ca96784))
+
+Gate Docker publish on semantic-release release creation
+
+
 ## v0.3.0 (2026-06-04)
 
 ### Features
