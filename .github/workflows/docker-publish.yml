@@ -1,12 +1,14 @@
 name: Build and publish Docker image
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
-  release:
-    types:
-      - published
+  workflow_call:
+    inputs:
+      release_tag:
+        required: true
+        type: string
+      build_version:
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -20,6 +22,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -40,9 +44,9 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=semver,pattern={{version}},value=${{ inputs.release_tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.release_tag }}
+            type=semver,pattern={{major}},value=${{ inputs.release_tag }}
             type=raw,value=latest
 
       - name: Build and push multi-arch image
@@ -55,7 +59,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: BUILD_VERSION=${{ github.ref_name }}
+          build-args: BUILD_VERSION=${{ inputs.build_version }}
 
       - name: Attest Docker image provenance
         uses: actions/attest-build-provenance@v2

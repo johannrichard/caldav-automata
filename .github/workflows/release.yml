@@ -5,12 +5,15 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      released: ${{ steps.semantic.outputs.released }}
+      tag: ${{ steps.semantic.outputs.tag }}
+      version: ${{ steps.semantic.outputs.version }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -23,6 +26,20 @@ jobs:
           python-version: "3.x"
 
       - name: Run python-semantic-release
+        id: semantic
         uses: python-semantic-release/python-semantic-release@v9.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  docker-publish:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      release_tag: ${{ needs.release.outputs.tag }}
+      build_version: ${{ needs.release.outputs.tag }}
