@@ -320,7 +320,7 @@ types are AND'd. A condition type that is omitted matches everything.
 | Action | Description |
 |---|---|
 | `(add-attendee "email@example.com")` | Add an attendee to the event (idempotent, defaults `SCHEDULE-AGENT` to `SERVER`) |
-| `(add-attendee "email@example.com" "Name" role "OPT-PARTICIPANT" partstat "NEEDS-ACTION" rsvp "TRUE" schedule-agent "SERVER")` | Add attendee with optional attendee/scheduling parameters |
+| `(add-attendee "email@example.com" "Name" role "OPT-PARTICIPANT" partstat "NEEDS-ACTION" rsvp "TRUE" schedule-agent "CLIENT")` | Add attendee with optional attendee/scheduling parameters (override default `SERVER`) |
 | `(set-alert <minutes> "<type>")` | Add or replace an alert. Type is `DISPLAY`, `EMAIL`, or `AUDIO` |
 | `(accept-invite)` | Accept inbox invite request (`METHOD:REQUEST`) |
 | `(decline-invite)` | Decline inbox invite request (`METHOD:REQUEST`) |
