@@ -79,7 +79,8 @@ class _EventState:
 
     def __init__(self, path: str) -> None:
         self._path = Path(path)
-        self._data: dict[str, str] = {}
+        self._event_data: dict[str, str] = {}
+        self._inbox_data: dict[str, str] = {}
         # In-memory set of URLs written by this process; used to skip the
         # apparent ETag change caused by our own write-back (see module docs).
         self._self_written: set[str] = set()
@@ -88,26 +89,48 @@ class _EventState:
     def _load(self) -> None:
         if self._path.exists():
             try:
-                self._data = json.loads(self._path.read_text(encoding='utf-8'))
+                payload = json.loads(self._path.read_text(encoding='utf-8'))
+                if isinstance(payload, dict) and (
+                    'event_etags' in payload or 'inbox_etags' in payload
+                ):
+                    self._event_data = dict(payload.get('event_etags', {}))
+                    self._inbox_data = dict(payload.get('inbox_etags', {}))
+                else:
+                    # Backward compatibility with old flat {url: etag} state.
+                    self._event_data = dict(payload)
+                    self._inbox_data = {}
                 logger.debug(
-                    'State loaded: %d known event(s) from %s',
-                    len(self._data), self._path,
+                    'State loaded: %d known event(s), %d known inbox item(s) from %s',
+                    len(self._event_data), len(self._inbox_data), self._path,
                 )
             except Exception:
                 logger.exception('Could not read state file %s — starting fresh', self._path)
 
     def save(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(self._data, indent=2), encoding='utf-8')
+        payload = {
+            'event_etags': self._event_data,
+            'inbox_etags': self._inbox_data,
+        }
+        self._path.write_text(json.dumps(payload, indent=2), encoding='utf-8')
 
     def get_etag(self, url: str) -> str | None:
-        return self._data.get(url)
+        return self._event_data.get(url)
 
     def set_etag(self, url: str, etag: str) -> None:
-        self._data[url] = etag
+        self._event_data[url] = etag
 
     def is_known(self, url: str) -> bool:
-        return url in self._data
+        return url in self._event_data
+
+    def get_inbox_etag(self, url: str) -> str | None:
+        return self._inbox_data.get(url)
+
+    def set_inbox_etag(self, url: str, etag: str) -> None:
+        self._inbox_data[url] = etag
+
+    def is_known_inbox(self, url: str) -> bool:
+        return url in self._inbox_data
 
     def mark_self_written(self, url: str) -> None:
         self._self_written.add(url)
@@ -173,11 +196,20 @@ def _matches_date_specs(event_date: date | None, specs: list[str], operator: str
     return False
 
 
+def _organizer_candidates(value: str) -> set[str]:
+    """Return organizer forms usable for matching fnmatch patterns."""
+    raw = str(value).strip().lower()
+    if not raw:
+        return set()
+    return {raw, raw.removeprefix('mailto:')}
+
+
 def _matches(
     rule: Rule,
     calendar_name: str,
     subject: str = '',
     note: str = '',
+    organizer: str = '',
     start_date: date | None = None,
 ) -> bool:
     if rule.calendars and not any(
@@ -195,6 +227,16 @@ def _matches(
         for pat in rule.notes
     ):
         return False
+    if rule.organizers:
+        organizer_values = _organizer_candidates(organizer)
+        if not organizer_values:
+            return False
+        if not any(
+            fnmatch.fnmatch(value, pat.lower())
+            for pat in rule.organizers
+            for value in organizer_values
+        ):
+            return False
     if not _matches_date_specs(start_date, rule.date_on, 'on'):
         return False
     if not _matches_date_specs(start_date, rule.date_before, 'before'):
@@ -255,9 +297,10 @@ def _apply_rules(
             continue
         subject = str(component.get('SUMMARY', ''))
         note = str(component.get('DESCRIPTION', ''))
+        organizer = str(component.get('ORGANIZER', ''))
         start_date = _event_start_date(component)
         for rule in rules:
-            if not _matches(rule, calendar_name, subject, note, start_date):
+            if not _matches(rule, calendar_name, subject, note, organizer, start_date):
                 continue
             actions = rule.on_create if is_new else rule.on_update
             for action in actions:
@@ -274,6 +317,60 @@ def _apply_rules(
     except Exception:
         logger.exception('Could not serialise modified iCal — skipping write-back')
         return None
+
+
+def _has_invite_rules(rules: list[Rule]) -> bool:
+    """Return True when any rule has scheduling inbox actions."""
+    return any(rule.on_invite_request or rule.on_invite_reply for rule in rules)
+
+
+def _first_vevent(raw_ical: str):
+    """Return the first VEVENT component from an iCal payload."""
+    try:
+        cal = Calendar.from_ical(raw_ical)
+    except Exception:
+        return None
+    for component in cal.walk():
+        if component.name == 'VEVENT':
+            return component
+    return None
+
+
+def _apply_inbox_rules(
+    raw_ical: str,
+    invite_type: str,
+    inbox_item,
+    rules: list[Rule],
+) -> bool:
+    """
+    Apply invite-request/reply actions to a scheduling inbox item.
+
+    Returns True when at least one action executed successfully.
+    """
+    component = _first_vevent(raw_ical)
+    if component is None:
+        logger.debug('Inbox item has no VEVENT component — skipping')
+        return False
+
+    subject = str(component.get('SUMMARY', ''))
+    note = str(component.get('DESCRIPTION', ''))
+    organizer = str(component.get('ORGANIZER', ''))
+    start_date = _event_start_date(component)
+
+    changed = False
+    for rule in rules:
+        if not _matches(rule, 'inbox', subject, note, organizer, start_date):
+            continue
+        actions = (
+            rule.on_invite_request if invite_type == 'request' else rule.on_invite_reply
+        )
+        for action in actions:
+            try:
+                changed = apply_action(component, action, inbox_item=inbox_item) or changed
+            except Exception:
+                logger.exception('Error applying inbox action %r', action)
+
+    return changed
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +471,64 @@ def _poll_calendar(
     return saved
 
 
+def _poll_inbox(
+    principal: caldav.Principal,
+    state: _EventState,
+    rules: list[Rule],
+    label: str,
+) -> int:
+    """
+    Poll the account scheduling inbox and apply invite request/reply rules.
+
+    Returns the number of inbox items that triggered at least one action.
+    """
+    try:
+        inbox = principal.schedule_inbox()
+        items = inbox.get_items()
+    except Exception:
+        logger.exception('[%s] Could not fetch scheduling inbox', label)
+        return 0
+
+    handled = 0
+    for item in items:
+        url = str(item.url)
+        etag = _normalise_etag(getattr(item, 'etag', None))
+
+        is_new = not state.is_known_inbox(url)
+        is_changed = not is_new and state.get_inbox_etag(url) != etag
+        if not is_new and not is_changed:
+            continue
+
+        title, date_str = _get_event_info(item.data)
+        uid = url.rstrip('/').split('/')[-1]
+
+        try:
+            is_request = bool(item.is_invite_request())
+            is_reply = bool(item.is_invite_reply())
+        except Exception:
+            logger.exception('[%s] Could not classify inbox item %s', label, uid)
+            state.set_inbox_etag(url, etag)
+            continue
+
+        if not is_request and not is_reply:
+            state.set_inbox_etag(url, etag)
+            continue
+
+        invite_type = 'request' if is_request else 'reply'
+        if title:
+            logger.info('[%s] %s inbox item: "%s" (%s)', label, invite_type, title, date_str)
+        else:
+            logger.info('[%s] %s inbox item (date: %s)', label, invite_type, date_str)
+        logger.debug('[%s] Processing inbox item: %s', label, uid)
+
+        acted = _apply_inbox_rules(item.data, invite_type, item, rules)
+        if acted:
+            handled += 1
+        state.set_inbox_etag(url, etag)
+
+    return handled
+
+
 # ---------------------------------------------------------------------------
 # Per-account polling
 # ---------------------------------------------------------------------------
@@ -419,6 +574,16 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
         logger.exception('Could not connect to account %r (%s)', label, url)
         return
 
+    scheduling_supported = False
+    try:
+        if hasattr(client, 'supports_scheduling'):
+            scheduling_supported = bool(client.supports_scheduling())
+        else:
+            scheduling_supported = bool(client.check_scheduling_support())
+    except Exception:
+        logger.exception('[%s] Could not determine scheduling support', label)
+    logger.debug('[%s] Scheduling support: %s', label, scheduling_supported)
+
     watched_count = 0
     for calendar in all_calendars:
         cal_name = calendar.name or ''
@@ -431,6 +596,21 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
             logger.info(
                 '[%s] Applied rules to %d event(s) in calendar %r',
                 label, count, cal_name,
+            )
+
+    if _has_invite_rules(rules):
+        if scheduling_supported:
+            inbox_count = _poll_inbox(principal, state, rules, label)
+            if inbox_count:
+                logger.info(
+                    '[%s] Applied invite actions to %d inbox item(s)',
+                    label, inbox_count,
+                )
+        else:
+            logger.warning(
+                '[%s] Invite rules configured but server has no scheduling support; '
+                'skipping inbox processing',
+                label,
             )
 
     logger.debug('Account %r: polled %d calendar(s)', label, watched_count)

@@ -11,6 +11,7 @@
 ;       (calendar "Other Calendar")  ; multiple (calendar ...) = OR
 ;       (subject "*keyword*")        ; fnmatch on event SUMMARY; multiple = OR
 ;       (note "*keyword*")           ; fnmatch on event DESCRIPTION; multiple = OR
+;       (organizer "*@example.com")  ; fnmatch on ORGANIZER; multiple = OR
 ;       (date-on "today")            ; DTSTART on this day; multiple = OR
 ;       (date-after "2026-05-21"))   ; DTSTART after this day; multiple = OR
 ;     (on-create                     ; actions run when a new event is saved
@@ -18,7 +19,7 @@
 ;     (on-update                     ; actions run when an existing event is saved
 ;       <action> ...))
 ;
-; Condition types are AND'd: calendar, subject, note, and date conditions all apply.
+; Condition types are AND'd: calendar, subject, note, organizer, and date conditions all apply.
 ; Within each type, multiple values are OR'd (any one must match).
 ;
 ; Available actions
@@ -31,6 +32,25 @@
 ;   (set-alert <minutes> "DISPLAY"|"EMAIL" "Optional description")
 ;       Attach a VALARM to the event.  A pre-existing alarm of the same type
 ;       is replaced, so the rule stays idempotent on repeated updates.
+;
+;   (add-attendee "email@example.com" "Full Name"
+;                 role "REQ-PARTICIPANT"
+;                 partstat "NEEDS-ACTION"
+;                 rsvp "TRUE"
+;                 schedule-agent "SERVER")
+;       Optional attendee parameters can control scheduling behavior.
+;
+;   (on-invite-request <action> ...)
+;       Actions for inbox invite requests (METHOD:REQUEST).
+;
+;   (on-invite-reply <action> ...)
+;       Actions for inbox invite replies (METHOD:REPLY).
+;
+;   Invite-only actions:
+;     (accept-invite)
+;     (decline-invite)
+;     (tentative-invite)
+;     (delete-inbox-item)
 ;
 ; Comments start with ; and run to the end of the line.
 ; -------------------------------------------------------
@@ -69,6 +89,22 @@
 ;     (calendar "Team"))
 ;   (on-update
 ;     (add-attendee "colleague@example.com" "Colleague")))
+
+
+; Auto-accept incoming invites from inbox and remove the inbox item.
+; (rule
+;   (when
+;     (subject "*standup*")
+;     (organizer "manager@work.com"))
+;   (on-invite-request
+;     (accept-invite)
+;     (delete-inbox-item)))
+
+
+; Clean up reply notifications in inbox.
+; (rule
+;   (on-invite-reply
+;     (delete-inbox-item)))
 
 
 ; Set an urgent email alert for any event whose subject contains "urgent".
