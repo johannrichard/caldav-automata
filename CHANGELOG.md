@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.6.0 (2026-06-05)
+
+### Bug Fixes
+
+- ✅ default SERVER schedule agent
+  ([`a9028ec`](https://github.com/johannrichard/caldav-automata/commit/a9028ecc6bb940027344309aa5c0f9d4fe30ad42))
+
+- 🤖 set SERVER as default schedule agent
+  ([`39e2c47`](https://github.com/johannrichard/caldav-automata/commit/39e2c47fb23d0028c45a776f8baacc2e61c464cf))
+
+### Features
+
+- 🧭 add organizer rule filter support
+  ([`37bcd8f`](https://github.com/johannrichard/caldav-automata/commit/37bcd8ff8d673e34b26ebe6ee1ea8211d3c04be6))
+
+
 ## v0.5.2 (2026-06-04)
 
 ### Build System
