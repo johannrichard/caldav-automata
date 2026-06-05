@@ -17,7 +17,12 @@ Supported rule syntax
         (add-attendee "email@example.com" "Full Name")
         (set-alert 15 "DISPLAY" "Reminder"))
       (on-update              ; triggered when an existing event is updated
-        (add-attendee "email@example.com" "Full Name")))
+        (add-attendee "email@example.com" "Full Name"))
+      (on-invite-request      ; triggered for inbox METHOD:REQUEST items
+        (accept-invite)
+        (delete-inbox-item))
+      (on-invite-reply        ; triggered for inbox METHOD:REPLY items
+        (delete-inbox-item)))
 
 Within each condition type (calendar, subject, note, date-on, date-before,
 date-after) multiple values are OR'd.
@@ -113,6 +118,8 @@ class Rule:
     date_after: list[str] = field(default_factory=list)
     on_create: list = field(default_factory=list)
     on_update: list = field(default_factory=list)
+    on_invite_request: list = field(default_factory=list)
+    on_invite_reply: list = field(default_factory=list)
 
     def __repr__(self) -> str:
         return (
@@ -123,7 +130,9 @@ class Rule:
             f'date_before={self.date_before!r}, '
             f'date_after={self.date_after!r}, '
             f'on_create={self.on_create!r}, '
-            f'on_update={self.on_update!r})'
+            f'on_update={self.on_update!r}, '
+            f'on_invite_request={self.on_invite_request!r}, '
+            f'on_invite_reply={self.on_invite_reply!r})'
         )
 
 
@@ -172,6 +181,10 @@ def _compile_form(form) -> Rule | None:
             rule.on_create = [c for c in clause[1:] if isinstance(c, list)]
         elif head == 'on-update':
             rule.on_update = [c for c in clause[1:] if isinstance(c, list)]
+        elif head == 'on-invite-request':
+            rule.on_invite_request = [c for c in clause[1:] if isinstance(c, list)]
+        elif head == 'on-invite-reply':
+            rule.on_invite_reply = [c for c in clause[1:] if isinstance(c, list)]
     return rule
 
 

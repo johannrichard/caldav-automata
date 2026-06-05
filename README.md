@@ -236,8 +236,8 @@ image: ghcr.io/johannrichard/caldav-automata:1.2.3
 ## Rule language
 
 Rules are written in a simple S-expression dialect (LISP). Each rule
-specifies which calendars it applies to and what actions to run when an
-event is created or updated.
+specifies which events/inbox items it applies to and what actions to run
+when an event is created or updated, or when scheduling inbox messages arrive.
 
 ### Structure
 
@@ -251,6 +251,12 @@ event is created or updated.
     <action> …)
 
   (on-update             ; actions that run when an existing event changes
+    <action> …)
+
+  (on-invite-request     ; actions for inbox METHOD:REQUEST items
+    <action> …)
+
+  (on-invite-reply       ; actions for inbox METHOD:REPLY items
     <action> …))
 ```
 
@@ -314,7 +320,12 @@ types are AND'd. A condition type that is omitted matches everything.
 | Action | Description |
 |---|---|
 | `(add-attendee "email@example.com")` | Add an attendee to the event (idempotent) |
+| `(add-attendee "email@example.com" "Name" role "OPT-PARTICIPANT" partstat "NEEDS-ACTION" rsvp "TRUE" schedule-agent "SERVER")` | Add attendee with optional attendee/scheduling parameters |
 | `(set-alert <minutes> "<type>")` | Add or replace an alert. Type is `DISPLAY`, `EMAIL`, or `AUDIO` |
+| `(accept-invite)` | Accept inbox invite request (`METHOD:REQUEST`) |
+| `(decline-invite)` | Decline inbox invite request (`METHOD:REQUEST`) |
+| `(tentative-invite)` | Tentatively accept inbox invite request (`METHOD:REQUEST`) |
+| `(delete-inbox-item)` | Delete current inbox item after processing |
 
 ### Examples
 
@@ -349,6 +360,19 @@ types are AND'd. A condition type that is omitted matches everything.
     (date-after "2026-05-21"))
   (on-create
     (set-alert 30 "DISPLAY")))
+
+; Auto-accept specific invites from scheduling inbox and clean them up.
+(rule
+  (when
+    (subject "*standup*"))
+  (on-invite-request
+    (accept-invite)
+    (delete-inbox-item)))
+
+; Remove organizer reply notifications from inbox.
+(rule
+  (on-invite-reply
+    (delete-inbox-item)))
 ```
 
 ### Debug logging
@@ -405,7 +429,8 @@ new or updated event as it is processed.
 ## Compatible CalDAV servers
 
 - **Apple iCloud** — uses App-Specific Passwords; principal discovery is
-  handled automatically.
+  handled automatically. Scheduling/invite inbox rules run only when
+  scheduling support is detected for the account.
 - **Nextcloud** — use the CalDAV URL shown in the *Settings › Personal info*
   section.
 - **Baikal**, **Radicale**, **DAViCal**, **Fastmail**, and any other
