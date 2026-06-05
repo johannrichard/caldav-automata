@@ -89,7 +89,7 @@ def add_attendee(
     role: str = 'REQ-PARTICIPANT',
     partstat: str = 'NEEDS-ACTION',
     rsvp: str | bool = 'TRUE',
-    schedule_agent: str | None = None,
+    schedule_agent: str | None = 'SERVER',
 ) -> bool:
     """
     Add an ATTENDEE to *event* (skipped silently if already present).
