@@ -196,11 +196,20 @@ def _matches_date_specs(event_date: date | None, specs: list[str], operator: str
     return False
 
 
+def _organizer_candidates(value: str) -> set[str]:
+    """Return organizer forms usable for matching fnmatch patterns."""
+    raw = str(value).strip().lower()
+    if not raw:
+        return set()
+    return {raw, raw.removeprefix('mailto:')}
+
+
 def _matches(
     rule: Rule,
     calendar_name: str,
     subject: str = '',
     note: str = '',
+    organizer: str = '',
     start_date: date | None = None,
 ) -> bool:
     if rule.calendars and not any(
@@ -218,6 +227,16 @@ def _matches(
         for pat in rule.notes
     ):
         return False
+    if rule.organizers:
+        organizer_values = _organizer_candidates(organizer)
+        if not organizer_values:
+            return False
+        if not any(
+            fnmatch.fnmatch(value, pat.lower())
+            for pat in rule.organizers
+            for value in organizer_values
+        ):
+            return False
     if not _matches_date_specs(start_date, rule.date_on, 'on'):
         return False
     if not _matches_date_specs(start_date, rule.date_before, 'before'):
@@ -278,9 +297,10 @@ def _apply_rules(
             continue
         subject = str(component.get('SUMMARY', ''))
         note = str(component.get('DESCRIPTION', ''))
+        organizer = str(component.get('ORGANIZER', ''))
         start_date = _event_start_date(component)
         for rule in rules:
-            if not _matches(rule, calendar_name, subject, note, start_date):
+            if not _matches(rule, calendar_name, subject, note, organizer, start_date):
                 continue
             actions = rule.on_create if is_new else rule.on_update
             for action in actions:
@@ -334,11 +354,12 @@ def _apply_inbox_rules(
 
     subject = str(component.get('SUMMARY', ''))
     note = str(component.get('DESCRIPTION', ''))
+    organizer = str(component.get('ORGANIZER', ''))
     start_date = _event_start_date(component)
 
     changed = False
     for rule in rules:
-        if not _matches(rule, 'inbox', subject, note, start_date):
+        if not _matches(rule, 'inbox', subject, note, organizer, start_date):
             continue
         actions = (
             rule.on_invite_request if invite_type == 'request' else rule.on_invite_reply

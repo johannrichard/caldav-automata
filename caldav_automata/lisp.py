@@ -8,8 +8,9 @@ Supported rule syntax
       (when
         (calendar "Name")      ; exact name, or "*" for every calendar
         (calendar "Other")     ; multiple (calendar ...) = OR
-        (subject "*meeting*")  ; fnmatch pattern on SUMMARY; multiple = OR
+        (subject "*meeting*")   ; fnmatch pattern on SUMMARY; multiple = OR
         (note "*urgent*")       ; fnmatch pattern on DESCRIPTION; multiple = OR
+        (organizer "*@acme.com"); fnmatch pattern on ORGANIZER; multiple = OR
         (date-on "2026-05-21")  ; event DTSTART on this day; multiple = OR
         (date-before "today")   ; event DTSTART before this day; multiple = OR
         (date-after "today"))   ; event DTSTART after this day; multiple = OR
@@ -24,8 +25,8 @@ Supported rule syntax
       (on-invite-reply        ; triggered for inbox METHOD:REPLY items
         (delete-inbox-item)))
 
-Within each condition type (calendar, subject, note, date-on, date-before,
-date-after) multiple values are OR'd.
+Within each condition type (calendar, subject, note, organizer, date-on,
+date-before, date-after) multiple values are OR'd.
 Different condition types are AND'd: all non-empty condition groups must match.
 
 Comments start with `;` and run to the end of the line.
@@ -113,6 +114,7 @@ class Rule:
     calendars: list[str] = field(default_factory=list)
     subjects: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    organizers: list[str] = field(default_factory=list)
     date_on: list[str] = field(default_factory=list)
     date_before: list[str] = field(default_factory=list)
     date_after: list[str] = field(default_factory=list)
@@ -126,6 +128,7 @@ class Rule:
             f'Rule(calendars={self.calendars!r}, '
             f'subjects={self.subjects!r}, '
             f'notes={self.notes!r}, '
+            f'organizers={self.organizers!r}, '
             f'date_on={self.date_on!r}, '
             f'date_before={self.date_before!r}, '
             f'date_after={self.date_after!r}, '
@@ -171,6 +174,8 @@ def _compile_form(form) -> Rule | None:
                     rule.subjects.append(str(cond[1]))
                 elif cond[0] == 'note':
                     rule.notes.append(str(cond[1]))
+                elif cond[0] == 'organizer':
+                    rule.organizers.append(str(cond[1]))
                 elif cond[0] == 'date-on':
                     rule.date_on.append(_parse_date_spec(cond[1]))
                 elif cond[0] == 'date-before':

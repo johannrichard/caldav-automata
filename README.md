@@ -261,15 +261,17 @@ when an event is created or updated, or when scheduling inbox messages arrive.
 ```
 
 The `when` block can also filter on the event **subject** (SUMMARY), **note**
-(DESCRIPTION), and **start date** (`DTSTART`). Subject and note filters use
-`fnmatch` patterns, where `*` matches any sequence of characters:
+(DESCRIPTION), **organizer** (ORGANIZER), and **start date** (`DTSTART`).
+Subject, note, and organizer filters use `fnmatch` patterns, where `*` matches
+any sequence of characters:
 
 ```lisp
 (rule
   (when
     (calendar "Work")       ; must be in the Work calendar
     (subject "*standup*")   ; AND SUMMARY must contain "standup"
-    (note "*action item*")) ; AND DESCRIPTION must contain "action item"
+    (note "*action item*")  ; AND DESCRIPTION must contain "action item"
+    (organizer "*@work.com")); AND ORGANIZER must match pattern
   …)
 ```
 
@@ -312,6 +314,13 @@ types are AND'd. A condition type that is omitted matches everything.
   (when
     (date-after "2026-05-21")
     (date-before "2026-06-01"))
+  …)
+
+; Matches inbox/event items from one organizer.
+(rule
+  (when
+    (calendar "inbox")
+    (organizer "manager@work.com"))
   …)
 ```
 
@@ -364,7 +373,8 @@ types are AND'd. A condition type that is omitted matches everything.
 ; Auto-accept specific invites from scheduling inbox and clean them up.
 (rule
   (when
-    (subject "*standup*"))
+    (subject "*standup*")
+    (organizer "manager@work.com"))
   (on-invite-request
     (accept-invite)
     (delete-inbox-item)))
