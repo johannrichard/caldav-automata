@@ -1,6 +1,24 @@
 # CHANGELOG
 
 
+## v0.10.0 (2026-06-06)
+
+### Continuous Integration
+
+- :recycle: keep 15 docker image versions
+  ([`aa529b5`](https://github.com/johannrichard/caldav-automata/commit/aa529b5bf6066e7339eed8ab55489865501382be))
+
+### Documentation
+
+- :memo: clarify systemd /opt installation requirement
+  ([`745a618`](https://github.com/johannrichard/caldav-automata/commit/745a61820f9b0d04cf661f95b4d2e2ef6c1be270))
+
+### Features
+
+- :lock: integrate systemd-creds for iCloud password
+  ([`8d2eb46`](https://github.com/johannrichard/caldav-automata/commit/8d2eb46e9891f09fabb5ae26cd256f6fa4931dc8))
+
+
 ## v0.9.4 (2026-06-06)
 
 ### Build System
