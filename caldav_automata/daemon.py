@@ -309,20 +309,25 @@ def _has_attendees(component) -> bool:
     return True
 
 
-def _enforce_organizer(component, organizer: str) -> bool:
-    """Set ORGANIZER on *component* when it differs from *organizer*."""
+def _set_organizer_if_missing(component, organizer: str) -> bool:
+    """Set ORGANIZER on *component* only when it is currently empty."""
     target = _normalise_calendar_address(organizer)
     if not target:
         return False
 
     current = str(component.get("ORGANIZER", "")).strip()
-    current_candidates = _organizer_candidates(current)
-    target_candidates = _organizer_candidates(target)
-    if current_candidates and current_candidates.intersection(target_candidates):
+    if current:
         return False
 
     component["ORGANIZER"] = target
     return True
+
+
+def _is_add_attendee_action(action: Any) -> bool:
+    """Return True when *action* is an add-attendee action form."""
+    return (
+        isinstance(action, list) and bool(action) and str(action[0]) == "add-attendee"
+    )
 
 
 def _matches(
@@ -398,7 +403,7 @@ def _apply_rules(
     calendar_name: str,
     is_new: bool,
     rules: list[Rule],
-    organizer_override: str = "",
+    organizer_default: str = "",
 ) -> str | None:
     """
     Apply matching rules to *raw_ical*.
@@ -416,6 +421,7 @@ def _apply_rules(
     for component in cal.walk():
         if component.name != "VEVENT":
             continue
+        attendee_action_seen = False
         subject = str(component.get("SUMMARY", ""))
         note = str(component.get("DESCRIPTION", ""))
         organizer = str(component.get("ORGANIZER", ""))
@@ -425,13 +431,24 @@ def _apply_rules(
                 continue
             actions = rule.on_create if is_new else rule.on_update
             for action in actions:
+                if _is_add_attendee_action(action):
+                    attendee_action_seen = True
                 try:
                     changed = apply_action(component, action) or changed
                 except Exception:
                     logger.exception("Error applying action %r", action)
 
-        if organizer_override and _has_attendees(component):
-            changed = _enforce_organizer(component, organizer_override) or changed
+        if organizer_default and attendee_action_seen and _has_attendees(component):
+            organizer_set = _set_organizer_if_missing(component, organizer_default)
+            if organizer_set:
+                logger.debug(
+                    "[%s] Missing ORGANIZER on attended event; defaulted to %r "
+                    "(summary=%r)",
+                    calendar_name,
+                    _normalise_calendar_address(organizer_default),
+                    subject,
+                )
+            changed = organizer_set or changed
 
     if not changed:
         return None
@@ -528,7 +545,7 @@ def _poll_calendar(
     calendar: caldav.Calendar,
     state: _EventState,
     rules: list[Rule],
-    organizer_override: str = "",
+    organizer_default: str = "",
 ) -> int:
     """
     Fetch all events in *calendar*, apply rules to new/changed ones, and
@@ -637,7 +654,7 @@ def _poll_calendar(
             cal_name,
             is_new,
             rules,
-            organizer_override=organizer_override,
+            organizer_default=organizer_default,
         )
 
         if modified_ical is not None:
@@ -815,17 +832,17 @@ def _matches_watch_pattern(name: str, patterns: list[str]) -> bool:
     return False
 
 
-def _configured_organizer_overrides(accounts: list[dict]) -> list[str]:
-    """Return human-readable account organizer overrides for startup logs."""
-    overrides: list[str] = []
+def _configured_organizer_defaults(accounts: list[dict]) -> list[str]:
+    """Return human-readable account organizer defaults for startup logs."""
+    defaults: list[str] = []
     for account in accounts:
         label = str(account.get("name", account.get("url", "?")))
         organizer = str(account.get("organizer", "")).strip()
         if not organizer:
             continue
         cal_address = _normalise_calendar_address(organizer)
-        overrides.append(f"account={label!r} organizer={cal_address!r}")
-    return overrides
+        defaults.append(f"account={label!r} organizer={cal_address!r}")
+    return defaults
 
 
 def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
@@ -834,7 +851,7 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
     username = account.get("username", "")
     secret = account.get("password", "")
     watch_patterns = _normalise_watch_entries(account.get("calendars", ["*"]))
-    organizer_override = str(account.get("organizer", "")).strip()
+    organizer_default = str(account.get("organizer", "")).strip()
 
     # Optional per-account DAVClient knobs — useful for iCloud and other
     # servers that require non-default TLS or authentication settings.
@@ -886,7 +903,7 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
             calendar,
             state,
             rules,
-            organizer_override=organizer_override,
+            organizer_default=organizer_default,
         )
         if count:
             logger.info(
@@ -969,21 +986,21 @@ class Daemon:
             rules_dir,
         )
 
-        organizer_overrides = _configured_organizer_overrides(accounts)
-        if organizer_overrides:
+        organizer_defaults = _configured_organizer_defaults(accounts)
+        if organizer_defaults:
             logger.info(
-                "Configured %d account organizer override(s)",
-                len(organizer_overrides),
+                "Configured %d account organizer default(s)",
+                len(organizer_defaults),
             )
-            for entry in organizer_overrides[:20]:
-                logger.info("Organizer override: %s", entry)
-            if len(organizer_overrides) > 20:
+            for entry in organizer_defaults[:20]:
+                logger.info("Organizer default: %s", entry)
+            if len(organizer_defaults) > 20:
                 logger.info(
-                    "Organizer override: +%d more",
-                    len(organizer_overrides) - 20,
+                    "Organizer default: +%d more",
+                    len(organizer_defaults) - 20,
                 )
         else:
-            logger.info("No account organizer overrides configured")
+            logger.info("No account organizer defaults configured")
 
         while self._running:
             current_snapshot = _rule_files_snapshot(rules_dir)
