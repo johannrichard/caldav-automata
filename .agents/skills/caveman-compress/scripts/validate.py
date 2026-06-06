@@ -10,7 +10,9 @@ BULLET_REGEX = re.compile(r"^\s*[-*+]\s+", re.MULTILINE)
 
 # crude but effective path detection
 # Requires either a path prefix (./ ../ / or drive letter) or a slash/backslash within the match
-PATH_REGEX = re.compile(r"(?:\./|\.\./|/|[A-Za-z]:\\)[\w\-/\\\.]+|[\w\-\.]+[/\\][\w\-/\\\.]+")
+PATH_REGEX = re.compile(
+    r"(?:\./|\.\./|/|[A-Za-z]:\\)[\w\-/\\\.]+|[\w\-\.]+[/\\][\w\-/\\\.]+"
+)
 
 
 class ValidationResult:
@@ -96,7 +98,9 @@ def count_bullets(text):
 
 def extract_inline_codes(text):
     text_without_fences = re.sub(r"^```[\s\S]*?^```", "", text, flags=re.MULTILINE)
-    text_without_fences = re.sub(r"^~~~[\s\S]*?^~~~", "", text_without_fences, flags=re.MULTILINE)
+    text_without_fences = re.sub(
+        r"^~~~[\s\S]*?^~~~", "", text_without_fences, flags=re.MULTILINE
+    )
     return re.findall(r"`([^`]+)`", text_without_fences)
 
 

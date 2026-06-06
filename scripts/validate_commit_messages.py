@@ -60,7 +60,9 @@ def load_commit_rows(args: argparse.Namespace) -> list[tuple[str, str, str]]:
     if args.commit_range:
         output = git_output("log", "--format=" + format_string, args.commit_range)
     else:
-        output = git_output("show", "--no-patch", "--format=" + format_string, *args.commits)
+        output = git_output(
+            "show", "--no-patch", "--format=" + format_string, *args.commits
+        )
 
     if not output:
         return []
