@@ -187,16 +187,58 @@ class _EventState:
 
 def _load_all_rules(rules_dir: str) -> list[Rule]:
     rules: list[Rule] = []
-    pattern = os.path.join(rules_dir, "**", "*.lisp")
-    for path in sorted(glob_module.glob(pattern, recursive=True)):
-        if path.endswith(".example.lisp"):
-            continue
+    for path in _iter_rule_files(rules_dir):
         try:
             loaded = load_rules(path)
             rules.extend(loaded)
         except Exception:
             logger.exception("Failed to load rules from %s", path)
     return rules
+
+
+def _iter_rule_files(rules_dir: str) -> list[str]:
+    """Return sorted rule file paths that should be considered for reloads."""
+    pattern = os.path.join(rules_dir, "**", "*.lisp")
+    return [
+        path
+        for path in sorted(glob_module.glob(pattern, recursive=True))
+        if not path.endswith(".example.lisp")
+    ]
+
+
+def _rule_files_snapshot(rules_dir: str) -> dict[str, tuple[int, int]]:
+    """Return a fingerprint map for current rule files.
+
+    The tuple stores ``(mtime_ns, size)`` per path to detect edits,
+    creations, and deletions.
+    """
+    snapshot: dict[str, tuple[int, int]] = {}
+    for path in _iter_rule_files(rules_dir):
+        try:
+            st = os.stat(path)
+        except OSError:
+            # File may disappear between glob and stat.
+            continue
+        snapshot[path] = (st.st_mtime_ns, st.st_size)
+    return snapshot
+
+
+def _describe_rule_changes(
+    previous: dict[str, tuple[int, int]],
+    current: dict[str, tuple[int, int]],
+) -> list[str]:
+    """Describe added/removed/modified rule files for logging."""
+    added = sorted(path for path in current if path not in previous)
+    removed = sorted(path for path in previous if path not in current)
+    modified = sorted(
+        path for path in current if path in previous and current[path] != previous[path]
+    )
+
+    changes: list[str] = []
+    changes.extend(f"added {Path(path).name}" for path in added)
+    changes.extend(f"removed {Path(path).name}" for path in removed)
+    changes.extend(f"modified {Path(path).name}" for path in modified)
+    return changes
 
 
 def _resolve_date_spec(spec: str) -> date:
@@ -552,7 +594,7 @@ def _poll_calendar(
         if modified_ical is not None:
             try:
                 event.data = modified_ical
-                calendar.add_event(modified_ical)
+                event.save()
                 new_etag = _normalise_etag(getattr(event, "etag", None))
                 if new_etag:
                     state.set_etag(url, new_etag)
@@ -822,6 +864,8 @@ class Daemon:
         interval = int(self._config.get("poll_interval", 30))
         rules_dir = self._config.get("rules_dir", "/rules")
         accounts: list[dict] = self._config.get("accounts", [])
+        rules: list[Rule] = []
+        rules_snapshot: dict[str, tuple[int, int]] = {}
 
         logger.info(
             "CalDAV Automata started — %d account(s), poll every %ds, rules: %s",
@@ -831,8 +875,24 @@ class Daemon:
         )
 
         while self._running:
-            rules = _load_all_rules(rules_dir)
-            logger.debug("Rules loaded: %d", len(rules))
+            current_snapshot = _rule_files_snapshot(rules_dir)
+            needs_reload = not rules or current_snapshot != rules_snapshot
+            if needs_reload:
+                if rules_snapshot:
+                    changes = _describe_rule_changes(rules_snapshot, current_snapshot)
+                    change_msg = ", ".join(changes[:5])
+                    if len(changes) > 5:
+                        change_msg += f", +{len(changes) - 5} more"
+                    if not change_msg:
+                        change_msg = "timestamp-only change"
+                    logger.warning(
+                        "Rule files changed on disk — reloading rules (%s)",
+                        change_msg,
+                    )
+
+                rules = _load_all_rules(rules_dir)
+                rules_snapshot = current_snapshot
+                logger.debug("Rules loaded: %d", len(rules))
 
             for account in accounts:
                 if not self._running:
