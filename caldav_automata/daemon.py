@@ -96,16 +96,18 @@ class _EventState:
                 if isinstance(payload, dict) and (
                     "event_etags" in payload or "inbox_etags" in payload
                 ):
-                    self._event_data = dict(payload.get('event_etags', {}))
-                    self._inbox_data = dict(payload.get('inbox_etags', {}))
+                    self._event_data = dict(payload.get("event_etags", {}))
+                    self._inbox_data = dict(payload.get("inbox_etags", {}))
                 else:
                     # Backward compatibility with old flat {url: etag} state.
                     self._event_data = dict(payload)
                     self._inbox_data = {}
                     self._calendar_sync_tokens = {}
                 logger.debug(
-                    'State loaded: %d known event(s), %d known inbox item(s) from %s',
-                    len(self._event_data), len(self._inbox_data), self._path,
+                    "State loaded: %d known event(s), %d known inbox item(s) from %s",
+                    len(self._event_data),
+                    len(self._inbox_data),
+                    self._path,
                 )
             except Exception:
                 logger.exception(
@@ -115,8 +117,8 @@ class _EventState:
     def save(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            'event_etags': self._event_data,
-            'inbox_etags': self._inbox_data,
+            "event_etags": self._event_data,
+            "inbox_etags": self._inbox_data,
         }
         self._path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -419,15 +421,61 @@ def _poll_calendar(
     cal_url = str(calendar.url)
     saved = 0
 
-    try:
-        events = calendar.events()
-    except Exception:
-        logger.exception('Could not fetch events from calendar %r', cal_name)
-        return 0
+    events = None
+    sync_token = state.get_calendar_sync_token(cal_url)
+
+    if hasattr(calendar, "get_objects_by_sync_token"):
+        try:
+            changes = calendar.get_objects_by_sync_token(
+                sync_token=sync_token, load_objects=False
+            )
+            events = list(changes)
+            new_sync_token = getattr(changes, "sync_token", None)
+            if isinstance(new_sync_token, str) and new_sync_token:
+                state.set_calendar_sync_token(cal_url, new_sync_token)
+            logger.debug(
+                "[%s] Delta sync returned %d changed item(s) (token: %s)",
+                cal_name,
+                len(events),
+                "present" if new_sync_token else "missing",
+            )
+        except Exception:
+            logger.exception(
+                "[%s] Delta sync failed; falling back to full calendar scan",
+                cal_name,
+            )
+
+    if events is None:
+        try:
+            events = calendar.events()
+        except Exception:
+            logger.exception("Could not fetch events from calendar %r", cal_name)
+            return 0
 
     for event in events:
         url = str(event.url)
-        etag = _normalise_etag(getattr(event, 'etag', None))
+
+        # Sync-collection responses often include only href+etag with no body.
+        # Load the object lazily when needed. If that fails or still yields
+        # no payload, treat it as deleted/unavailable and drop stale state.
+        raw_ical = getattr(event, "data", None)
+        if not raw_ical and hasattr(event, "load"):
+            try:
+                event.load()
+                raw_ical = getattr(event, "data", None)
+            except Exception:
+                raw_ical = None
+        if not raw_ical:
+            state.clear_etag(url)
+            state.clear_self_written(url)
+            logger.debug(
+                "[%s] Event deleted or unavailable, dropped from state: %s",
+                cal_name,
+                url,
+            )
+            continue
+
+        etag = _normalise_etag(getattr(event, "etag", None))
 
         is_new = not state.is_known(url)
         is_changed = not is_new and state.get_etag(url) != etag
@@ -435,9 +483,9 @@ def _poll_calendar(
         if not is_new and not is_changed:
             continue
 
-        verb = 'new' if is_new else 'updated'
-        uid = url.rstrip('/').split('/')[-1]
-        title, date_str = _get_event_info(event.data)
+        verb = "new" if is_new else "updated"
+        uid = url.rstrip("/").split("/")[-1]
+        title, date_str = _get_event_info(raw_ical)
 
         # Self-write guard: if we wrote this event ourselves in this process
         # lifetime and its ETag now looks changed, the change is self-caused.
@@ -458,13 +506,13 @@ def _poll_calendar(
             logger.info("[%s] %s event (date: %s)", cal_name, verb, date_str)
         logger.debug("[%s] %s event detected: %s", cal_name, verb, uid)
 
-        modified_ical = _apply_rules(event.data, cal_name, is_new, rules)
+        modified_ical = _apply_rules(raw_ical, cal_name, is_new, rules)
 
         if modified_ical is not None:
             try:
                 event.data = modified_ical
                 calendar.save_event(event)
-                new_etag = _normalise_etag(getattr(event, 'etag', None))
+                new_etag = _normalise_etag(getattr(event, "etag", None))
                 if new_etag:
                     state.set_etag(url, new_etag)
                 else:
