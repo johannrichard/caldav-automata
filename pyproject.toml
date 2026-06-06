@@ -14,3 +14,17 @@ build_command = "echo 'Skipping package build'"
 
 [tool.semantic_release.commit_parser_options]
 patch_tags = ["fix", "perf", "build"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310", "py311", "py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.git
+  | \.venv
+  | \.agents
+  | build
+  | dist
+)/
+'''

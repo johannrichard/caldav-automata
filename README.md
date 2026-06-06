@@ -436,6 +436,33 @@ new or updated event as it is processed.
 
 ---
 
+## Development formatting (Black)
+
+This repository uses [Black](https://black.readthedocs.io/) for Python code
+formatting.
+
+Install development dependencies:
+
+```sh
+python -m pip install -r requirements-dev.txt
+```
+
+Format all Python code:
+
+```sh
+black .
+```
+
+Check formatting without modifying files:
+
+```sh
+black --check .
+```
+
+Formatting is also enforced in CI by `.github/workflows/python-format.yml`.
+
+---
+
 ## Compatible CalDAV servers
 
 - **Apple iCloud** — uses App-Specific Passwords; principal discovery is
