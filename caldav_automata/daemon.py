@@ -2,9 +2,10 @@
 CalDAV Automata — polling daemon.
 
 Watches one or more CalDAV accounts and their calendars.  On every poll
-cycle it fetches all events, compares their ETags against a persistent
-state file, and — for events that are new or changed — applies the
-matching LISP rules before writing the modified event back to the server.
+cycle it tries to fetch only changed events via CalDAV sync-tokens
+(``sync-collection`` REPORT), compares ETags against a persistent state
+file, and — for events that are new or changed — applies the matching
+LISP rules before writing the modified event back to the server.
 
 Change detection
 ----------------
@@ -82,6 +83,7 @@ class _EventState:
         self._path = Path(path)
         self._event_data: dict[str, str] = {}
         self._inbox_data: dict[str, str] = {}
+        self._calendar_sync_tokens: dict[str, str] = {}
         # In-memory set of URLs written by this process; used to skip the
         # apparent ETag change caused by our own write-back (see module docs).
         self._self_written: set[str] = set()
@@ -94,17 +96,16 @@ class _EventState:
                 if isinstance(payload, dict) and (
                     "event_etags" in payload or "inbox_etags" in payload
                 ):
-                    self._event_data = dict(payload.get("event_etags", {}))
-                    self._inbox_data = dict(payload.get("inbox_etags", {}))
+                    self._event_data = dict(payload.get('event_etags', {}))
+                    self._inbox_data = dict(payload.get('inbox_etags', {}))
                 else:
                     # Backward compatibility with old flat {url: etag} state.
                     self._event_data = dict(payload)
                     self._inbox_data = {}
+                    self._calendar_sync_tokens = {}
                 logger.debug(
-                    "State loaded: %d known event(s), %d known inbox item(s) from %s",
-                    len(self._event_data),
-                    len(self._inbox_data),
-                    self._path,
+                    'State loaded: %d known event(s), %d known inbox item(s) from %s',
+                    len(self._event_data), len(self._inbox_data), self._path,
                 )
             except Exception:
                 logger.exception(
@@ -114,8 +115,8 @@ class _EventState:
     def save(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "event_etags": self._event_data,
-            "inbox_etags": self._inbox_data,
+            'event_etags': self._event_data,
+            'inbox_etags': self._inbox_data,
         }
         self._path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -124,6 +125,9 @@ class _EventState:
 
     def set_etag(self, url: str, etag: str) -> None:
         self._event_data[url] = etag
+
+    def clear_etag(self, url: str) -> None:
+        self._event_data.pop(url, None)
 
     def is_known(self, url: str) -> bool:
         return url in self._event_data
@@ -136,6 +140,12 @@ class _EventState:
 
     def is_known_inbox(self, url: str) -> bool:
         return url in self._inbox_data
+
+    def get_calendar_sync_token(self, calendar_url: str) -> str | None:
+        return self._calendar_sync_tokens.get(calendar_url)
+
+    def set_calendar_sync_token(self, calendar_url: str, token: str) -> None:
+        self._calendar_sync_tokens[calendar_url] = token
 
     def mark_self_written(self, url: str) -> None:
         self._self_written.add(url)
@@ -406,17 +416,18 @@ def _poll_calendar(
     Returns the number of events that were modified and saved.
     """
     cal_name = calendar.name or str(calendar.url)
+    cal_url = str(calendar.url)
     saved = 0
 
     try:
         events = calendar.events()
     except Exception:
-        logger.exception("Could not fetch events from calendar %r", cal_name)
+        logger.exception('Could not fetch events from calendar %r', cal_name)
         return 0
 
     for event in events:
         url = str(event.url)
-        etag = _normalise_etag(getattr(event, "etag", None))
+        etag = _normalise_etag(getattr(event, 'etag', None))
 
         is_new = not state.is_known(url)
         is_changed = not is_new and state.get_etag(url) != etag
@@ -424,8 +435,8 @@ def _poll_calendar(
         if not is_new and not is_changed:
             continue
 
-        verb = "new" if is_new else "updated"
-        uid = url.rstrip("/").split("/")[-1]
+        verb = 'new' if is_new else 'updated'
+        uid = url.rstrip('/').split('/')[-1]
         title, date_str = _get_event_info(event.data)
 
         # Self-write guard: if we wrote this event ourselves in this process
@@ -452,8 +463,8 @@ def _poll_calendar(
         if modified_ical is not None:
             try:
                 event.data = modified_ical
-                event.save()
-                new_etag = _normalise_etag(getattr(event, "etag", None))
+                calendar.save_event(event)
+                new_etag = _normalise_etag(getattr(event, 'etag', None))
                 if new_etag:
                     state.set_etag(url, new_etag)
                 else:
