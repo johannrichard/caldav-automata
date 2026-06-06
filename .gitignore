@@ -12,6 +12,9 @@ build/
 venv/
 env/
 
+# macOS
+.DS_Store
+
 # Editor
 !.vscode/
 .vscode/*
