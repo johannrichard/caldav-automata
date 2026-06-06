@@ -823,7 +823,12 @@ def _configured_organizer_fallbacks(accounts: list[dict]) -> list[str]:
     return fallbacks
 
 
-def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
+def _poll_account(
+    account: dict,
+    state: _EventState,
+    rules: list[Rule],
+    owner_email_cache: dict[str, str | None],
+) -> None:
     label = account.get("name", account.get("url", "?"))
     url = account.get("url", "")
     username = account.get("username", "")
@@ -858,24 +863,33 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
         logger.exception("Could not connect to account %r (%s)", label, url)
         return
 
-    scheduling_supported = False
-    owner_email = _principal_owner_email(principal)
-    if owner_email:
-        logger.info("[%s] Principal organizer email detected: %s", label, owner_email)
-    elif organizer_fallback:
-        owner_email = _normalise_calendar_address(organizer_fallback)
-        logger.warning(
-            "[%s] Could not resolve principal calendar-user-address-set; "
-            "falling back to configured organizer %s",
-            label,
-            owner_email,
-        )
+    account_key = f"{url}|{username}"
+    if account_key in owner_email_cache:
+        owner_email = owner_email_cache[account_key]
+        logger.debug("[%s] Using cached principal organizer email", label)
     else:
-        logger.warning(
-            "[%s] Could not resolve principal calendar-user-address-set and no "
-            "organizer fallback configured",
-            label,
-        )
+        owner_email = _principal_owner_email(principal)
+        if owner_email:
+            logger.info(
+                "[%s] Principal organizer email detected: %s", label, owner_email
+            )
+        elif organizer_fallback:
+            owner_email = _normalise_calendar_address(organizer_fallback)
+            logger.warning(
+                "[%s] Could not resolve principal calendar-user-address-set; "
+                "falling back to configured organizer %s",
+                label,
+                owner_email,
+            )
+        else:
+            logger.warning(
+                "[%s] Could not resolve principal calendar-user-address-set and no "
+                "organizer fallback configured",
+                label,
+            )
+        owner_email_cache[account_key] = owner_email
+
+    scheduling_supported = False
 
     try:
         if hasattr(client, "supports_scheduling"):
@@ -974,6 +988,7 @@ class Daemon:
         accounts: list[dict] = self._config.get("accounts", [])
         rules: list[Rule] = []
         rules_snapshot: dict[str, tuple[int, int]] = {}
+        owner_email_cache: dict[str, str | None] = {}
 
         logger.info(
             "CalDAV Automata started — %d account(s), poll every %ds, rules: %s",
@@ -1021,7 +1036,7 @@ class Daemon:
             for account in accounts:
                 if not self._running:
                     break
-                _poll_account(account, self._state, rules)
+                _poll_account(account, self._state, rules, owner_email_cache)
 
             self._state.save()
 
