@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.10.1 (2026-06-06)
+
+### Bug Fixes
+
+- :bug: make systemd stop terminate cleanly
+  ([`d02a8d4`](https://github.com/johannrichard/caldav-automata/commit/d02a8d4d09605aa4fd1f1d6fecd28315deebe4e6))
+
+### Chores
+
+- :mag: log resolved sqlite state db path
+  ([`1dea62e`](https://github.com/johannrichard/caldav-automata/commit/1dea62e3cc4235ce6a3c783758d5e47b51ffb83a))
+
+
 ## v0.10.0 (2026-06-06)
 
 ### Continuous Integration
