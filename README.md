@@ -117,8 +117,7 @@ an App-Specific Password (see step 1).
 Calendar names support `fnmatch` wildcards. Use `["*"]` to watch every
 calendar on an account.
 
-Set `organizer` on the account to enforce ORGANIZER on new/updated events
-that have at least one attendee.
+Set `organizer` on the account as a default ORGANIZER value.
 
 `calendars` entries are string patterns:
 
@@ -128,8 +127,8 @@ calendars:
   - "Work"
 ```
 
-When `organizer` is set on the account, CalDAV Automata enforces that
-ORGANIZER value on new/updated events that have at least one attendee.
+When `organizer` is set on the account, CalDAV Automata sets ORGANIZER only
+when it is missing and attendee actions run for the event.
 
 ### 4 — Write your first rule
 
@@ -459,7 +458,7 @@ new or updated event as it is processed.
 | `url` | CalDAV base URL (e.g. `https://caldav.icloud.com/`) |
 | `username` | Account username / Apple ID |
 | `password` | Account password or `${ENV_VAR}` reference |
-| `organizer` | *(optional)* Organizer address to enforce on attended events |
+| `organizer` | *(optional)* Default organizer for attendee-driven updates |
 | `calendars` | Calendar names/wildcards to watch; `["*"]` watches all |
 | `ssl_verify_cert` | *(optional)* `true` (default) or `false` |
 | `auth_type` | *(optional)* Auth type, e.g. `"basic"` or `"digest"` |
