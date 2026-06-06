@@ -961,6 +961,7 @@ class Daemon:
         if not state_db_file:
             legacy_state = config.get("state_file", "/data/state.json")
             state_db_file = str(Path(legacy_state).with_suffix(".db"))
+        logger.debug("Resolved SQLite state DB path: %s", state_db_file)
         self._state = _EventState(state_db_file)
 
         signal.signal(signal.SIGTERM, self._handle_stop)
