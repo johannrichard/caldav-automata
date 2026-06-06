@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.10.2 (2026-06-06)
+
+### Bug Fixes
+
+- :bug: use installed package version at startup
+  ([`897bc90`](https://github.com/johannrichard/caldav-automata/commit/897bc90163b42f2d979c1fb2d95f49c4d5a3c8b6))
+
+
 ## v0.10.1 (2026-06-06)
 
 ### Bug Fixes
