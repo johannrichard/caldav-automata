@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.9.3 (2026-06-06)
+
+### Performance Improvements
+
+- :zap: cache principal organizer discovery per account
+  ([`4fcb916`](https://github.com/johannrichard/caldav-automata/commit/4fcb916850e17924716b3dc153a470794b196442))
+
+
 ## v0.9.2 (2026-06-06)
 
 ### Bug Fixes
