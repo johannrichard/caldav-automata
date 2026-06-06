@@ -710,12 +710,25 @@ class Daemon:
     def __init__(self, config: dict) -> None:
         self._config = config
         self._running = True
+        self._sigint_count = 0
         self._state = _EventState(config.get("state_file", "/data/state.json"))
 
         signal.signal(signal.SIGTERM, self._handle_stop)
         signal.signal(signal.SIGINT, self._handle_stop)
 
-    def _handle_stop(self, *_: Any) -> None:
+    def _handle_stop(self, signum: int, *_: Any) -> None:
+        if signum == signal.SIGINT:
+            self._sigint_count += 1
+            if self._sigint_count == 1:
+                logger.warning(
+                    "Ctrl-C received — stopping after current cycle "
+                    "(press Ctrl-C once more to force abort)"
+                )
+                self._running = False
+                return
+            logger.error("Second Ctrl-C received — aborting immediately")
+            raise SystemExit(130)
+
         logger.info("Shutdown signal received — stopping after current cycle")
         self._running = False
 
