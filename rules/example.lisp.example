@@ -38,7 +38,18 @@
 ;                 partstat "NEEDS-ACTION"
 ;                 rsvp "TRUE"
 ;                 schedule-agent "SERVER")
-;       Optional attendee parameters can control scheduling behavior.
+;       Optional attendee parameters can control scheduling behavior:
+;         role           iTIP role in the invite.
+;                        Common values: "REQ-PARTICIPANT", "OPT-PARTICIPANT",
+;                        "NON-PARTICIPANT", "CHAIR".
+;         partstat       Participation status for the attendee.
+;                        Common values: "NEEDS-ACTION", "ACCEPTED",
+;                        "DECLINED", "TENTATIVE", "DELEGATED".
+;         rsvp           Whether a reply is requested.
+;                        Accepted inputs: "TRUE"/"FALSE" (also yes/no/1/0).
+;         schedule-agent Scheduling responsibility hint.
+;                        Typical values: "SERVER", "CLIENT", "NONE".
+;       Parameter names are case-insensitive; values are normalized to upper-case.
 ;
 ;   (on-invite-request <action> ...)
 ;       Actions for inbox invite requests (METHOD:REQUEST).

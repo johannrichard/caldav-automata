@@ -325,6 +325,25 @@ types are AND'd. A condition type that is omitted matches everything.
 | `(tentative-invite)` | Tentatively accept `METHOD:REQUEST` invite |
 | `(delete-inbox-item)` | Delete current inbox item after processing |
 
+#### add-attendee optional parameters
+
+```lisp
+(add-attendee "email@example.com" "Full Name"
+              role "REQ-PARTICIPANT"
+              partstat "NEEDS-ACTION"
+              rsvp "TRUE"
+              schedule-agent "SERVER")
+```
+
+| Parameter | Meaning | Typical values |
+| --- | --- | --- |
+| `role` | iTIP role in the invite | `REQ-PARTICIPANT`, `OPT-PARTICIPANT`, `NON-PARTICIPANT`, `CHAIR` |
+| `partstat` | Initial participation status | `NEEDS-ACTION`, `ACCEPTED`, `DECLINED`, `TENTATIVE`, `DELEGATED` |
+| `rsvp` | Whether a reply is requested | `TRUE` or `FALSE` (also accepts `yes/no/1/0`) |
+| `schedule-agent` | Scheduling responsibility hint | `SERVER`, `CLIENT`, `NONE` |
+
+Parameter names are case-insensitive; values are normalized to upper-case.
+
 ### Examples
 
 ```lisp
