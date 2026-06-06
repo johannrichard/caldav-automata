@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.9.1 (2026-06-06)
+
+### Bug Fixes
+
+- :bug: set organizer only when missing after attendee actions
+  ([`ab63196`](https://github.com/johannrichard/caldav-automata/commit/ab631966ea67b9a07aa89cdeb2cdacf4c8185dea))
+
+### Documentation
+
+- :memo: clarify organizer default behavior
+  ([`4a15668`](https://github.com/johannrichard/caldav-automata/commit/4a15668f500766c4d922ecb611b60a2c547f428c))
+
+
 ## v0.9.0 (2026-06-06)
 
 ### Documentation
