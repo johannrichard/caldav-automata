@@ -10,7 +10,8 @@
       "console": "integratedTerminal",
       "env": {
         "CONFIG_FILE": "${workspaceFolder}/config/calendar.yaml",
-        "LOG_LEVEL": "DEBUG"
+        "LOG_LEVEL": "DEBUG",
+        "LOG_COLOR": "always"
       }
     }
   ]
