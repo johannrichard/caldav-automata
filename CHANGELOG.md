@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.9.4 (2026-06-06)
+
+### Build System
+
+- :construction_worker: add installable package metadata and CLI
+  ([`f7dd75c`](https://github.com/johannrichard/caldav-automata/commit/f7dd75c6c847bca4fa41fa4c2dd7246f04fe3c3c))
+
+### Documentation
+
+- :memo: add systemd deployment and host install guide
+  ([`1363337`](https://github.com/johannrichard/caldav-automata/commit/13633376eb089de300d881ad8ad9b949d5138fbc))
+
+
 ## v0.9.3 (2026-06-06)
 
 ### Performance Improvements
