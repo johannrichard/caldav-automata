@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.9.0 (2026-06-06)
+
+### Documentation
+
+- :memo: document account-level organizer config
+  ([`be5c9a6`](https://github.com/johannrichard/caldav-automata/commit/be5c9a6c57e9637ecf6d90fd0f710e66c27ee8ec))
+
+### Features
+
+- :sparkles: enforce account organizer for attended events
+  ([`708d0d9`](https://github.com/johannrichard/caldav-automata/commit/708d0d9fc73b74377fe950e2e25bdb1a9f4aebdd))
+
+
 ## v0.8.0 (2026-06-06)
 
 ### Bug Fixes
