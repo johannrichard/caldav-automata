@@ -150,6 +150,13 @@ blocks, and any number of files can live in the `rules/` directory.
 docker compose up -d
 ```
 
+Optional logging env vars:
+
+- `LOG_LEVEL`: log threshold (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`).
+- `LOG_COLOR`: color mode for terminal output (`auto`, `always`, `never`).
+  Default is `auto` (colors only when stdout is a TTY). `NO_COLOR` disables
+  colors in auto mode.
+
 The shipped `docker-compose.yml` mounts `./secrets/icloud_password.txt` as the
 Docker secret `/run/secrets/icloud_password`, which matches the
 `password_file` example above. To build the image locally instead of pulling
