@@ -275,6 +275,23 @@ paths before enabling the service:
 - `ExecStart`
 - `Environment=CONFIG_FILE` (or `/etc/default/caldav-automata`)
 
+The service also loads the iCloud password from an encrypted systemd
+credential. It exposes the decrypted runtime path as `ICLOUD_PASSWORD_FILE`,
+and the example `calendar.yaml` uses:
+
+```yaml
+password_file: "${ICLOUD_PASSWORD_FILE}"
+```
+
+Create the encrypted credential file at:
+
+```text
+/etc/caldav-automata/credentials/icloud_password.cred
+```
+
+using `systemd-creds encrypt --pretty` and keep that path in sync with the
+`LoadCredentialEncrypted=` line in the unit file.
+
 Templates are provided in `deploy/systemd/`:
 
 - `deploy/systemd/caldav-automata.service`
@@ -288,6 +305,7 @@ sudo mkdir -p /etc/caldav-automata /var/lib/caldav-automata /etc/default
 sudo cp config/calendar.example.yaml /etc/caldav-automata/calendar.yaml
 sudo cp deploy/systemd/caldav-automata.env.example /etc/default/caldav-automata
 sudo cp deploy/systemd/caldav-automata.service /etc/systemd/system/
+sudo mkdir -p /etc/caldav-automata/credentials
 sudo systemctl daemon-reload
 sudo systemctl enable --now caldav-automata.service
 sudo systemctl status caldav-automata.service
@@ -301,6 +319,9 @@ journalctl -u caldav-automata.service -f
 
 If `CONFIG_FILE` points outside your home directory, ensure permissions allow
 the `caldav` user to read the config and any referenced secret files.
+For systemd credentials, the service manages the decrypted runtime file under
+`$CREDENTIALS_DIRECTORY`, so the YAML should reference the provided env var
+instead of a literal password path.
 
 ---
 
