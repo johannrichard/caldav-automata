@@ -264,6 +264,17 @@ pipx install "git+https://github.com/johannrichard/caldav-automata.git"
 
 ### Run with systemd
 
+The provided `deploy/systemd/caldav-automata.service` assumes the project is
+installed under `/opt/caldav-automata` (specifically the venv at
+`/opt/caldav-automata/.venv`).
+
+If you install elsewhere, update at least these unit fields to match your
+paths before enabling the service:
+
+- `WorkingDirectory`
+- `ExecStart`
+- `Environment=CONFIG_FILE` (or `/etc/default/caldav-automata`)
+
 Templates are provided in `deploy/systemd/`:
 
 - `deploy/systemd/caldav-automata.service`
