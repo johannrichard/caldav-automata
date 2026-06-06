@@ -233,6 +233,66 @@ image: ghcr.io/johannrichard/caldav-automata:1.2.3
 
 ---
 
+## Deployment options
+
+- **Easiest and recommended**: Docker/Compose (already documented above).
+- **No Docker, Python host**: install as a Python package and run with
+  `systemd`.
+
+If you want to run this on a server without cloning the repository, you can
+install directly from GitHub.
+
+### Install without cloning (Python)
+
+Create a dedicated virtual environment and install from GitHub:
+
+```sh
+sudo mkdir -p /opt/caldav-automata
+sudo chown "$USER":"$USER" /opt/caldav-automata
+python3 -m venv /opt/caldav-automata/.venv
+/opt/caldav-automata/.venv/bin/pip install \
+  "git+https://github.com/johannrichard/caldav-automata.git"
+```
+
+This installs the `caldav-automata` CLI entrypoint from `pyproject.toml`.
+
+Alternative (single-user install):
+
+```sh
+pipx install "git+https://github.com/johannrichard/caldav-automata.git"
+```
+
+### Run with systemd
+
+Templates are provided in `deploy/systemd/`:
+
+- `deploy/systemd/caldav-automata.service`
+- `deploy/systemd/caldav-automata.env.example`
+
+Typical setup:
+
+```sh
+sudo useradd --system --home /nonexistent --shell /usr/sbin/nologin caldav
+sudo mkdir -p /etc/caldav-automata /var/lib/caldav-automata /etc/default
+sudo cp config/calendar.example.yaml /etc/caldav-automata/calendar.yaml
+sudo cp deploy/systemd/caldav-automata.env.example /etc/default/caldav-automata
+sudo cp deploy/systemd/caldav-automata.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now caldav-automata.service
+sudo systemctl status caldav-automata.service
+```
+
+Logs:
+
+```sh
+journalctl -u caldav-automata.service -f
+```
+
+If `CONFIG_FILE` points outside your home directory, ensure permissions allow
+the `caldav` user to read the config and any referenced secret files.
+
+---
+
 ## Docker image publishing and retention
 
 - Release tags are created automatically on `main` by
@@ -546,6 +606,7 @@ rules/
   example.lisp.example    starter rule template (not loaded)
 Dockerfile        single-process container image
 docker-compose.yml  example Compose deployment
+deploy/systemd/   systemd service templates for host installs
 ```
 
 ---

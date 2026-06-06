@@ -1,0 +1,27 @@
+[Unit]
+Description=CalDAV Automata daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=caldav
+Group=caldav
+WorkingDirectory=/opt/caldav-automata
+EnvironmentFile=-/etc/default/caldav-automata
+# Optional overrides if not set in EnvironmentFile
+Environment=CONFIG_FILE=/etc/caldav-automata/calendar.yaml
+Environment=LOG_LEVEL=INFO
+ExecStart=/opt/caldav-automata/.venv/bin/caldav-automata
+Restart=on-failure
+RestartSec=5
+
+# Basic hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/caldav-automata
+
+[Install]
+WantedBy=multi-user.target
