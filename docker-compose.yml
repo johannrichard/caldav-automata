@@ -11,9 +11,12 @@ services:
     # Optional fallback for env-var based secrets:
     # env_file: .env
     volumes:
-      - caldav-state:/data          # persists state.json across restarts
-      - ./rules:/rules:ro           # LISP rule files (hot-reloaded every cycle)
-      - ./config:/config:ro         # calendar.yaml configuration
+      - caldav-state:/data # persists state.json across restarts
+      - ./rules:/rules:ro # LISP rule files (hot-reloaded every cycle)
+      - ./config:/config:ro # calendar.yaml configuration
+    environment:
+      - LOG_COLOR=always # Enable colored logs in the container output (optional, but helpful for readability).
+      - LOG_LEVEL=INFO # Adjust log level as needed (DEBUG, INFO, WARNING, ERROR)
     restart: unless-stopped
 
 volumes:
