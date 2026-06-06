@@ -74,6 +74,7 @@ logger = logging.getLogger(__name__)
 # ETag state  (persisted to disk)
 # ---------------------------------------------------------------------------
 
+
 class _EventState:
     """Persistent mapping of event URL -> last-seen ETag."""
 
@@ -89,30 +90,34 @@ class _EventState:
     def _load(self) -> None:
         if self._path.exists():
             try:
-                payload = json.loads(self._path.read_text(encoding='utf-8'))
+                payload = json.loads(self._path.read_text(encoding="utf-8"))
                 if isinstance(payload, dict) and (
-                    'event_etags' in payload or 'inbox_etags' in payload
+                    "event_etags" in payload or "inbox_etags" in payload
                 ):
-                    self._event_data = dict(payload.get('event_etags', {}))
-                    self._inbox_data = dict(payload.get('inbox_etags', {}))
+                    self._event_data = dict(payload.get("event_etags", {}))
+                    self._inbox_data = dict(payload.get("inbox_etags", {}))
                 else:
                     # Backward compatibility with old flat {url: etag} state.
                     self._event_data = dict(payload)
                     self._inbox_data = {}
                 logger.debug(
-                    'State loaded: %d known event(s), %d known inbox item(s) from %s',
-                    len(self._event_data), len(self._inbox_data), self._path,
+                    "State loaded: %d known event(s), %d known inbox item(s) from %s",
+                    len(self._event_data),
+                    len(self._inbox_data),
+                    self._path,
                 )
             except Exception:
-                logger.exception('Could not read state file %s — starting fresh', self._path)
+                logger.exception(
+                    "Could not read state file %s — starting fresh", self._path
+                )
 
     def save(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            'event_etags': self._event_data,
-            'inbox_etags': self._inbox_data,
+            "event_etags": self._event_data,
+            "inbox_etags": self._inbox_data,
         }
-        self._path.write_text(json.dumps(payload, indent=2), encoding='utf-8')
+        self._path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     def get_etag(self, url: str) -> str | None:
         return self._event_data.get(url)
@@ -146,32 +151,33 @@ class _EventState:
 # Rule loading  (re-read every cycle for live hot-reload)
 # ---------------------------------------------------------------------------
 
+
 def _load_all_rules(rules_dir: str) -> list[Rule]:
     rules: list[Rule] = []
-    pattern = os.path.join(rules_dir, '**', '*.lisp')
+    pattern = os.path.join(rules_dir, "**", "*.lisp")
     for path in sorted(glob_module.glob(pattern, recursive=True)):
-        if path.endswith('.example.lisp'):
+        if path.endswith(".example.lisp"):
             continue
         try:
             loaded = load_rules(path)
             rules.extend(loaded)
         except Exception:
-            logger.exception('Failed to load rules from %s', path)
+            logger.exception("Failed to load rules from %s", path)
     return rules
 
 
 def _resolve_date_spec(spec: str) -> date:
-    if spec.lower() == 'today':
+    if spec.lower() == "today":
         return datetime.now().astimezone().date()
     return date.fromisoformat(spec)
 
 
 def _event_start_date(component) -> date | None:
-    value = component.get('DTSTART')
+    value = component.get("DTSTART")
     if value is None:
         return None
 
-    start = getattr(value, 'dt', value)
+    start = getattr(value, "dt", value)
     if isinstance(start, datetime):
         return start.astimezone().date() if start.tzinfo else start.date()
     if isinstance(start, date):
@@ -179,7 +185,9 @@ def _event_start_date(component) -> date | None:
     return None
 
 
-def _matches_date_specs(event_date: date | None, specs: list[str], operator: str) -> bool:
+def _matches_date_specs(
+    event_date: date | None, specs: list[str], operator: str
+) -> bool:
     if not specs:
         return True
     if event_date is None:
@@ -187,11 +195,11 @@ def _matches_date_specs(event_date: date | None, specs: list[str], operator: str
 
     for spec in specs:
         target = _resolve_date_spec(spec)
-        if operator == 'on' and event_date == target:
+        if operator == "on" and event_date == target:
             return True
-        if operator == 'before' and event_date < target:
+        if operator == "before" and event_date < target:
             return True
-        if operator == 'after' and event_date > target:
+        if operator == "after" and event_date > target:
             return True
     return False
 
@@ -201,30 +209,28 @@ def _organizer_candidates(value: str) -> set[str]:
     raw = str(value).strip().lower()
     if not raw:
         return set()
-    return {raw, raw.removeprefix('mailto:')}
+    return {raw, raw.removeprefix("mailto:")}
 
 
 def _matches(
     rule: Rule,
     calendar_name: str,
-    subject: str = '',
-    note: str = '',
-    organizer: str = '',
+    subject: str = "",
+    note: str = "",
+    organizer: str = "",
     start_date: date | None = None,
 ) -> bool:
     if rule.calendars and not any(
-        pat == '*' or fnmatch.fnmatch(calendar_name.lower(), pat.lower())
+        pat == "*" or fnmatch.fnmatch(calendar_name.lower(), pat.lower())
         for pat in rule.calendars
     ):
         return False
     if rule.subjects and not any(
-        fnmatch.fnmatch(subject.lower(), pat.lower())
-        for pat in rule.subjects
+        fnmatch.fnmatch(subject.lower(), pat.lower()) for pat in rule.subjects
     ):
         return False
     if rule.notes and not any(
-        fnmatch.fnmatch(note.lower(), pat.lower())
-        for pat in rule.notes
+        fnmatch.fnmatch(note.lower(), pat.lower()) for pat in rule.notes
     ):
         return False
     if rule.organizers:
@@ -237,11 +243,11 @@ def _matches(
             for value in organizer_values
         ):
             return False
-    if not _matches_date_specs(start_date, rule.date_on, 'on'):
+    if not _matches_date_specs(start_date, rule.date_on, "on"):
         return False
-    if not _matches_date_specs(start_date, rule.date_before, 'before'):
+    if not _matches_date_specs(start_date, rule.date_before, "before"):
         return False
-    if not _matches_date_specs(start_date, rule.date_after, 'after'):
+    if not _matches_date_specs(start_date, rule.date_after, "after"):
         return False
     return True
 
@@ -256,22 +262,23 @@ def _get_event_info(raw_ical: str) -> tuple[str, str]:
     try:
         cal = Calendar.from_ical(raw_ical)
     except Exception:
-        return '', 'unknown'
+        return "", "unknown"
 
     for component in cal.walk():
-        if component.name != 'VEVENT':
+        if component.name != "VEVENT":
             continue
-        title = str(component.get('SUMMARY', ''))
+        title = str(component.get("SUMMARY", ""))
         start_date = _event_start_date(component)
-        date_str = start_date.isoformat() if start_date is not None else 'unknown'
+        date_str = start_date.isoformat() if start_date is not None else "unknown"
         return title, date_str
 
-    return '', 'unknown'
+    return "", "unknown"
 
 
 # ---------------------------------------------------------------------------
 # iCalendar mutation
 # ---------------------------------------------------------------------------
+
 
 def _apply_rules(
     raw_ical: str,
@@ -288,16 +295,16 @@ def _apply_rules(
     try:
         cal = Calendar.from_ical(raw_ical)
     except Exception:
-        logger.exception('Could not parse iCal payload — skipping event')
+        logger.exception("Could not parse iCal payload — skipping event")
         return None
 
     changed = False
     for component in cal.walk():
-        if component.name != 'VEVENT':
+        if component.name != "VEVENT":
             continue
-        subject = str(component.get('SUMMARY', ''))
-        note = str(component.get('DESCRIPTION', ''))
-        organizer = str(component.get('ORGANIZER', ''))
+        subject = str(component.get("SUMMARY", ""))
+        note = str(component.get("DESCRIPTION", ""))
+        organizer = str(component.get("ORGANIZER", ""))
         start_date = _event_start_date(component)
         for rule in rules:
             if not _matches(rule, calendar_name, subject, note, organizer, start_date):
@@ -307,15 +314,15 @@ def _apply_rules(
                 try:
                     changed = apply_action(component, action) or changed
                 except Exception:
-                    logger.exception('Error applying action %r', action)
+                    logger.exception("Error applying action %r", action)
 
     if not changed:
         return None
 
     try:
-        return cal.to_ical().decode('utf-8')
+        return cal.to_ical().decode("utf-8")
     except Exception:
-        logger.exception('Could not serialise modified iCal — skipping write-back')
+        logger.exception("Could not serialise modified iCal — skipping write-back")
         return None
 
 
@@ -331,7 +338,7 @@ def _first_vevent(raw_ical: str):
     except Exception:
         return None
     for component in cal.walk():
-        if component.name == 'VEVENT':
+        if component.name == "VEVENT":
             return component
     return None
 
@@ -349,26 +356,28 @@ def _apply_inbox_rules(
     """
     component = _first_vevent(raw_ical)
     if component is None:
-        logger.debug('Inbox item has no VEVENT component — skipping')
+        logger.debug("Inbox item has no VEVENT component — skipping")
         return False
 
-    subject = str(component.get('SUMMARY', ''))
-    note = str(component.get('DESCRIPTION', ''))
-    organizer = str(component.get('ORGANIZER', ''))
+    subject = str(component.get("SUMMARY", ""))
+    note = str(component.get("DESCRIPTION", ""))
+    organizer = str(component.get("ORGANIZER", ""))
     start_date = _event_start_date(component)
 
     changed = False
     for rule in rules:
-        if not _matches(rule, 'inbox', subject, note, organizer, start_date):
+        if not _matches(rule, "inbox", subject, note, organizer, start_date):
             continue
         actions = (
-            rule.on_invite_request if invite_type == 'request' else rule.on_invite_reply
+            rule.on_invite_request if invite_type == "request" else rule.on_invite_reply
         )
         for action in actions:
             try:
-                changed = apply_action(component, action, inbox_item=inbox_item) or changed
+                changed = (
+                    apply_action(component, action, inbox_item=inbox_item) or changed
+                )
             except Exception:
-                logger.exception('Error applying inbox action %r', action)
+                logger.exception("Error applying inbox action %r", action)
 
     return changed
 
@@ -377,10 +386,11 @@ def _apply_inbox_rules(
 # Per-calendar polling
 # ---------------------------------------------------------------------------
 
+
 def _normalise_etag(etag: str | None) -> str:
     """Strip surrounding quotes that some servers add to ETags."""
     if etag is None:
-        return ''
+        return ""
     return etag.strip('"')
 
 
@@ -401,12 +411,12 @@ def _poll_calendar(
     try:
         events = calendar.events()
     except Exception:
-        logger.exception('Could not fetch events from calendar %r', cal_name)
+        logger.exception("Could not fetch events from calendar %r", cal_name)
         return 0
 
     for event in events:
         url = str(event.url)
-        etag = _normalise_etag(getattr(event, 'etag', None))
+        etag = _normalise_etag(getattr(event, "etag", None))
 
         is_new = not state.is_known(url)
         is_changed = not is_new and state.get_etag(url) != etag
@@ -414,8 +424,8 @@ def _poll_calendar(
         if not is_new and not is_changed:
             continue
 
-        verb = 'new' if is_new else 'updated'
-        uid = url.rstrip('/').split('/')[-1]
+        verb = "new" if is_new else "updated"
+        uid = url.rstrip("/").split("/")[-1]
         title, date_str = _get_event_info(event.data)
 
         # Self-write guard: if we wrote this event ourselves in this process
@@ -425,16 +435,17 @@ def _poll_calendar(
             state.clear_self_written(url)
             state.set_etag(url, etag)
             logger.debug(
-                '[%s] Skipping self-modified event (ETag refreshed): %s',
-                cal_name, uid,
+                "[%s] Skipping self-modified event (ETag refreshed): %s",
+                cal_name,
+                uid,
             )
             continue
 
         if title:
             logger.info('[%s] %s event: "%s" (%s)', cal_name, verb, title, date_str)
         else:
-            logger.info('[%s] %s event (date: %s)', cal_name, verb, date_str)
-        logger.debug('[%s] %s event detected: %s', cal_name, verb, uid)
+            logger.info("[%s] %s event (date: %s)", cal_name, verb, date_str)
+        logger.debug("[%s] %s event detected: %s", cal_name, verb, uid)
 
         modified_ical = _apply_rules(event.data, cal_name, is_new, rules)
 
@@ -442,7 +453,7 @@ def _poll_calendar(
             try:
                 event.data = modified_ical
                 event.save()
-                new_etag = _normalise_etag(getattr(event, 'etag', None))
+                new_etag = _normalise_etag(getattr(event, "etag", None))
                 if new_etag:
                     state.set_etag(url, new_etag)
                 else:
@@ -454,14 +465,20 @@ def _poll_calendar(
                 if title:
                     logger.info(
                         '[%s] Wrote back modified event: "%s" (%s)',
-                        cal_name, title, date_str,
+                        cal_name,
+                        title,
+                        date_str,
                     )
                 else:
-                    logger.info('[%s] Wrote back modified event (date: %s)', cal_name, date_str)
-                logger.debug('[%s] Wrote back modified event: %s', cal_name, uid)
+                    logger.info(
+                        "[%s] Wrote back modified event (date: %s)", cal_name, date_str
+                    )
+                logger.debug("[%s] Wrote back modified event: %s", cal_name, uid)
                 saved += 1
             except Exception:
-                logger.exception('Failed to save event %s in calendar %r', uid, cal_name)
+                logger.exception(
+                    "Failed to save event %s in calendar %r", uid, cal_name
+                )
                 # Record the original ETag so we do not loop on failure.
                 state.set_etag(url, etag)
         else:
@@ -486,13 +503,13 @@ def _poll_inbox(
         inbox = principal.schedule_inbox()
         items = inbox.get_items()
     except Exception:
-        logger.exception('[%s] Could not fetch scheduling inbox', label)
+        logger.exception("[%s] Could not fetch scheduling inbox", label)
         return 0
 
     handled = 0
     for item in items:
         url = str(item.url)
-        etag = _normalise_etag(getattr(item, 'etag', None))
+        etag = _normalise_etag(getattr(item, "etag", None))
 
         is_new = not state.is_known_inbox(url)
         is_changed = not is_new and state.get_inbox_etag(url) != etag
@@ -500,13 +517,13 @@ def _poll_inbox(
             continue
 
         title, date_str = _get_event_info(item.data)
-        uid = url.rstrip('/').split('/')[-1]
+        uid = url.rstrip("/").split("/")[-1]
 
         try:
             is_request = bool(item.is_invite_request())
             is_reply = bool(item.is_invite_reply())
         except Exception:
-            logger.exception('[%s] Could not classify inbox item %s', label, uid)
+            logger.exception("[%s] Could not classify inbox item %s", label, uid)
             state.set_inbox_etag(url, etag)
             continue
 
@@ -514,12 +531,14 @@ def _poll_inbox(
             state.set_inbox_etag(url, etag)
             continue
 
-        invite_type = 'request' if is_request else 'reply'
+        invite_type = "request" if is_request else "reply"
         if title:
-            logger.info('[%s] %s inbox item: "%s" (%s)', label, invite_type, title, date_str)
+            logger.info(
+                '[%s] %s inbox item: "%s" (%s)', label, invite_type, title, date_str
+            )
         else:
-            logger.info('[%s] %s inbox item (date: %s)', label, invite_type, date_str)
-        logger.debug('[%s] Processing inbox item: %s', label, uid)
+            logger.info("[%s] %s inbox item (date: %s)", label, invite_type, date_str)
+        logger.debug("[%s] Processing inbox item: %s", label, uid)
 
         acted = _apply_inbox_rules(item.data, invite_type, item, rules)
         if acted:
@@ -533,19 +552,19 @@ def _poll_inbox(
 # Per-account polling
 # ---------------------------------------------------------------------------
 
+
 def _should_watch(name: str, patterns: list[str]) -> bool:
     return any(
-        pat == '*' or fnmatch.fnmatch(name.lower(), pat.lower())
-        for pat in patterns
+        pat == "*" or fnmatch.fnmatch(name.lower(), pat.lower()) for pat in patterns
     )
 
 
 def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
-    label = account.get('name', account.get('url', '?'))
-    url = account.get('url', '')
-    username = account.get('username', '')
-    secret = account.get('password', '')
-    watched = account.get('calendars', ['*'])
+    label = account.get("name", account.get("url", "?"))
+    url = account.get("url", "")
+    username = account.get("username", "")
+    secret = account.get("password", "")
+    watched = account.get("calendars", ["*"])
 
     # Optional per-account DAVClient knobs — useful for iCloud and other
     # servers that require non-default TLS or authentication settings.
@@ -555,14 +574,14 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
     # Pass ssl_verify_cert, auth_type, or headers in the account config to
     # customise the connection when needed.
     client_kwargs: dict[str, Any] = {}
-    if 'ssl_verify_cert' in account:
-        client_kwargs['ssl_verify_cert'] = account['ssl_verify_cert']
-    if 'auth_type' in account:
-        client_kwargs['auth_type'] = account['auth_type']
-    if 'headers' in account:
-        client_kwargs['headers'] = account['headers']
+    if "ssl_verify_cert" in account:
+        client_kwargs["ssl_verify_cert"] = account["ssl_verify_cert"]
+    if "auth_type" in account:
+        client_kwargs["auth_type"] = account["auth_type"]
+    if "headers" in account:
+        client_kwargs["headers"] = account["headers"]
 
-    logger.debug('Polling account %r', label)
+    logger.debug("Polling account %r", label)
 
     try:
         client = caldav.DAVClient(
@@ -571,31 +590,35 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
         principal = client.principal()
         all_calendars = principal.calendars()
     except Exception:
-        logger.exception('Could not connect to account %r (%s)', label, url)
+        logger.exception("Could not connect to account %r (%s)", label, url)
         return
 
     scheduling_supported = False
     try:
-        if hasattr(client, 'supports_scheduling'):
+        if hasattr(client, "supports_scheduling"):
             scheduling_supported = bool(client.supports_scheduling())
         else:
             scheduling_supported = bool(client.check_scheduling_support())
     except Exception:
-        logger.exception('[%s] Could not determine scheduling support', label)
-    logger.debug('[%s] Scheduling support: %s', label, scheduling_supported)
+        logger.exception("[%s] Could not determine scheduling support", label)
+    logger.debug("[%s] Scheduling support: %s", label, scheduling_supported)
 
     watched_count = 0
     for calendar in all_calendars:
-        cal_name = calendar.name or ''
+        cal_name = calendar.name or ""
         if not _should_watch(cal_name, watched):
-            logger.debug('[%s] Skipping calendar %r (not in watch list)', label, cal_name)
+            logger.debug(
+                "[%s] Skipping calendar %r (not in watch list)", label, cal_name
+            )
             continue
         watched_count += 1
         count = _poll_calendar(calendar, state, rules)
         if count:
             logger.info(
-                '[%s] Applied rules to %d event(s) in calendar %r',
-                label, count, cal_name,
+                "[%s] Applied rules to %d event(s) in calendar %r",
+                label,
+                count,
+                cal_name,
             )
 
     if _has_invite_rules(rules):
@@ -603,22 +626,24 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
             inbox_count = _poll_inbox(principal, state, rules, label)
             if inbox_count:
                 logger.info(
-                    '[%s] Applied invite actions to %d inbox item(s)',
-                    label, inbox_count,
+                    "[%s] Applied invite actions to %d inbox item(s)",
+                    label,
+                    inbox_count,
                 )
         else:
             logger.warning(
-                '[%s] Invite rules configured but server has no scheduling support; '
-                'skipping inbox processing',
+                "[%s] Invite rules configured but server has no scheduling support; "
+                "skipping inbox processing",
                 label,
             )
 
-    logger.debug('Account %r: polled %d calendar(s)', label, watched_count)
+    logger.debug("Account %r: polled %d calendar(s)", label, watched_count)
 
 
 # ---------------------------------------------------------------------------
 # Daemon
 # ---------------------------------------------------------------------------
+
 
 class Daemon:
     """The main polling daemon."""
@@ -626,28 +651,30 @@ class Daemon:
     def __init__(self, config: dict) -> None:
         self._config = config
         self._running = True
-        self._state = _EventState(config.get('state_file', '/data/state.json'))
+        self._state = _EventState(config.get("state_file", "/data/state.json"))
 
         signal.signal(signal.SIGTERM, self._handle_stop)
         signal.signal(signal.SIGINT, self._handle_stop)
 
     def _handle_stop(self, *_: Any) -> None:
-        logger.info('Shutdown signal received — stopping after current cycle')
+        logger.info("Shutdown signal received — stopping after current cycle")
         self._running = False
 
     def run(self) -> None:
-        interval = int(self._config.get('poll_interval', 30))
-        rules_dir = self._config.get('rules_dir', '/rules')
-        accounts: list[dict] = self._config.get('accounts', [])
+        interval = int(self._config.get("poll_interval", 30))
+        rules_dir = self._config.get("rules_dir", "/rules")
+        accounts: list[dict] = self._config.get("accounts", [])
 
         logger.info(
-            'CalDAV Automata started — %d account(s), poll every %ds, rules: %s',
-            len(accounts), interval, rules_dir,
+            "CalDAV Automata started — %d account(s), poll every %ds, rules: %s",
+            len(accounts),
+            interval,
+            rules_dir,
         )
 
         while self._running:
             rules = _load_all_rules(rules_dir)
-            logger.debug('Rules loaded: %d', len(rules))
+            logger.debug("Rules loaded: %d", len(rules))
 
             for account in accounts:
                 if not self._running:
@@ -662,4 +689,4 @@ class Daemon:
                     break
                 time.sleep(1)
 
-        logger.info('CalDAV Automata stopped')
+        logger.info("CalDAV Automata stopped")

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 
-_ENV_RE = re.compile(r'\$\{([^}]+)\}')
+_ENV_RE = re.compile(r"\$\{([^}]+)\}")
 
 
 def _expand(value: object) -> object:
@@ -31,14 +31,14 @@ def _expand(value: object) -> object:
 def _load_secret(path: str) -> str:
     """Load a secret from *path*, trimming only trailing newlines."""
     try:
-        return Path(path).read_text(encoding='utf-8').rstrip('\r\n')
+        return Path(path).read_text(encoding="utf-8").rstrip("\r\n")
     except OSError as exc:
-        raise OSError(f'Could not read password_file {path!r}: {exc}') from exc
+        raise OSError(f"Could not read password_file {path!r}: {exc}") from exc
 
 
 def _resolve_account_secrets(config: dict) -> dict:
     """Resolve file-backed account secrets into plain ``password`` values."""
-    accounts = config.get('accounts')
+    accounts = config.get("accounts")
     if not isinstance(accounts, list):
         return config
 
@@ -49,13 +49,13 @@ def _resolve_account_secrets(config: dict) -> dict:
             continue
 
         resolved = dict(account)
-        password = resolved.get('password')
-        password_file = resolved.get('password_file')
+        password = resolved.get("password")
+        password_file = resolved.get("password_file")
         if not password and password_file:
-            resolved['password'] = _load_secret(str(password_file))
+            resolved["password"] = _load_secret(str(password_file))
         resolved_accounts.append(resolved)
 
-    return {**config, 'accounts': resolved_accounts}
+    return {**config, "accounts": resolved_accounts}
 
 
 def load_config(path: str) -> dict:
@@ -66,6 +66,6 @@ def load_config(path: str) -> dict:
     Account entries may also specify ``password_file`` to load a password
     from a mounted secret file.
     """
-    with open(path, encoding='utf-8') as fh:
+    with open(path, encoding="utf-8") as fh:
         raw = yaml.safe_load(fh)
     return _resolve_account_secrets(_expand(raw or {}))

@@ -43,54 +43,55 @@ from datetime import date
 # ---------------------------------------------------------------------------
 
 _TOKEN_RE = re.compile(
-    r'(?P<COMMENT>;[^\n]*)'
-    r'|(?P<LPAREN>\()'
-    r'|(?P<RPAREN>\))'
+    r"(?P<COMMENT>;[^\n]*)"
+    r"|(?P<LPAREN>\()"
+    r"|(?P<RPAREN>\))"
     r'|(?P<STRING>"(?:[^"\\]|\\.)*")'
-    r'|(?P<NUMBER>-?\d+(?:\.\d+)?)'
+    r"|(?P<NUMBER>-?\d+(?:\.\d+)?)"
     r'|(?P<SYMBOL>[^\s\(\)"]+)'
-    r'|(?P<WS>\s+)'
+    r"|(?P<WS>\s+)"
 )
 
 
 def _tokenise(src: str):
     for m in _TOKEN_RE.finditer(src):
         kind = m.lastgroup
-        if kind in ('WS', 'COMMENT'):
+        if kind in ("WS", "COMMENT"):
             continue
         raw = m.group()
-        if kind == 'STRING':
-            yield ('ATOM', raw[1:-1].replace('\\"', '"'))
-        elif kind == 'NUMBER':
-            yield ('ATOM', float(raw) if '.' in raw else int(raw))
-        elif kind == 'LPAREN':
-            yield ('LPAREN', None)
-        elif kind == 'RPAREN':
-            yield ('RPAREN', None)
+        if kind == "STRING":
+            yield ("ATOM", raw[1:-1].replace('\\"', '"'))
+        elif kind == "NUMBER":
+            yield ("ATOM", float(raw) if "." in raw else int(raw))
+        elif kind == "LPAREN":
+            yield ("LPAREN", None)
+        elif kind == "RPAREN":
+            yield ("RPAREN", None)
         else:  # SYMBOL
-            yield ('ATOM', raw)
+            yield ("ATOM", raw)
 
 
 # ---------------------------------------------------------------------------
 # Parser  →  nested Python lists / scalars
 # ---------------------------------------------------------------------------
 
+
 def _parse_expr(tokens: list, pos: int):
     if pos >= len(tokens):
-        raise SyntaxError('Unexpected end of input')
+        raise SyntaxError("Unexpected end of input")
     kind, val = tokens[pos]
-    if kind == 'ATOM':
+    if kind == "ATOM":
         return val, pos + 1
-    if kind == 'LPAREN':
+    if kind == "LPAREN":
         pos += 1
         items = []
-        while pos < len(tokens) and tokens[pos][0] != 'RPAREN':
+        while pos < len(tokens) and tokens[pos][0] != "RPAREN":
             item, pos = _parse_expr(tokens, pos)
             items.append(item)
         if pos >= len(tokens):
-            raise SyntaxError('Missing closing )')
+            raise SyntaxError("Missing closing )")
         return items, pos + 1  # consume RPAREN
-    raise SyntaxError(f'Unexpected token kind {kind!r}')
+    raise SyntaxError(f"Unexpected token kind {kind!r}")
 
 
 def parse(src: str) -> list:
@@ -106,6 +107,7 @@ def parse(src: str) -> list:
 # ---------------------------------------------------------------------------
 # Rule model
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Rule:
@@ -125,17 +127,17 @@ class Rule:
 
     def __repr__(self) -> str:
         return (
-            f'Rule(calendars={self.calendars!r}, '
-            f'subjects={self.subjects!r}, '
-            f'notes={self.notes!r}, '
-            f'organizers={self.organizers!r}, '
-            f'date_on={self.date_on!r}, '
-            f'date_before={self.date_before!r}, '
-            f'date_after={self.date_after!r}, '
-            f'on_create={self.on_create!r}, '
-            f'on_update={self.on_update!r}, '
-            f'on_invite_request={self.on_invite_request!r}, '
-            f'on_invite_reply={self.on_invite_reply!r})'
+            f"Rule(calendars={self.calendars!r}, "
+            f"subjects={self.subjects!r}, "
+            f"notes={self.notes!r}, "
+            f"organizers={self.organizers!r}, "
+            f"date_on={self.date_on!r}, "
+            f"date_before={self.date_before!r}, "
+            f"date_after={self.date_after!r}, "
+            f"on_create={self.on_create!r}, "
+            f"on_update={self.on_update!r}, "
+            f"on_invite_request={self.on_invite_request!r}, "
+            f"on_invite_reply={self.on_invite_reply!r})"
         )
 
 
@@ -143,9 +145,10 @@ class Rule:
 # Compiler  →  Rule objects
 # ---------------------------------------------------------------------------
 
+
 def _parse_date_spec(value) -> str:
     spec = str(value).strip()
-    if spec.lower() == 'today':
+    if spec.lower() == "today":
         return spec
     try:
         date.fromisoformat(spec)
@@ -157,38 +160,38 @@ def _parse_date_spec(value) -> str:
 
 
 def _compile_form(form) -> Rule | None:
-    if not isinstance(form, list) or not form or form[0] != 'rule':
+    if not isinstance(form, list) or not form or form[0] != "rule":
         return None
     rule = Rule()
     for clause in form[1:]:
         if not isinstance(clause, list) or not clause:
             continue
         head = clause[0]
-        if head == 'when':
+        if head == "when":
             for cond in clause[1:]:
                 if not isinstance(cond, list) or len(cond) < 2:
                     continue
-                if cond[0] == 'calendar':
+                if cond[0] == "calendar":
                     rule.calendars.append(str(cond[1]))
-                elif cond[0] == 'subject':
+                elif cond[0] == "subject":
                     rule.subjects.append(str(cond[1]))
-                elif cond[0] == 'note':
+                elif cond[0] == "note":
                     rule.notes.append(str(cond[1]))
-                elif cond[0] == 'organizer':
+                elif cond[0] == "organizer":
                     rule.organizers.append(str(cond[1]))
-                elif cond[0] == 'date-on':
+                elif cond[0] == "date-on":
                     rule.date_on.append(_parse_date_spec(cond[1]))
-                elif cond[0] == 'date-before':
+                elif cond[0] == "date-before":
                     rule.date_before.append(_parse_date_spec(cond[1]))
-                elif cond[0] == 'date-after':
+                elif cond[0] == "date-after":
                     rule.date_after.append(_parse_date_spec(cond[1]))
-        elif head == 'on-create':
+        elif head == "on-create":
             rule.on_create = [c for c in clause[1:] if isinstance(c, list)]
-        elif head == 'on-update':
+        elif head == "on-update":
             rule.on_update = [c for c in clause[1:] if isinstance(c, list)]
-        elif head == 'on-invite-request':
+        elif head == "on-invite-request":
             rule.on_invite_request = [c for c in clause[1:] if isinstance(c, list)]
-        elif head == 'on-invite-reply':
+        elif head == "on-invite-reply":
             rule.on_invite_reply = [c for c in clause[1:] if isinstance(c, list)]
     return rule
 
@@ -200,6 +203,6 @@ def compile_rules(forms: list) -> list[Rule]:
 
 def load_rules(path: str) -> list[Rule]:
     """Load and compile rules from a ``.lisp`` file."""
-    with open(path, encoding='utf-8') as fh:
+    with open(path, encoding="utf-8") as fh:
         src = fh.read()
     return compile_rules(parse(src))
