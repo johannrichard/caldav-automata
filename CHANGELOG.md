@@ -1,6 +1,32 @@
 # CHANGELOG
 
 
+## v0.7.0 (2026-06-06)
+
+### Build System
+
+- 🐳 upgrade Python base image to 3.13
+  ([`1a3b224`](https://github.com/johannrichard/caldav-automata/commit/1a3b22492a92d8181d3af23534d7eb828bdeb3ce))
+
+### Chores
+
+- 🔧 add Black formatter configuration and CI
+  ([`4cb37a8`](https://github.com/johannrichard/caldav-automata/commit/4cb37a8394b8b9ecd20a8f920bd189fc000902c4))
+
+### Code Style
+
+- :art: format code with black
+  ([`5e27b47`](https://github.com/johannrichard/caldav-automata/commit/5e27b478ad23e9c9714727139ba08b9f8fdc49c9))
+
+- 🎨 apply Black formatting to Python files
+  ([`4c5b426`](https://github.com/johannrichard/caldav-automata/commit/4c5b426f2e99ad50a2e9bcbdd8a0f0f6d016139e))
+
+### Features
+
+- ✨ add sync-token state tracking and fix event persistence
+  ([`df8e0c8`](https://github.com/johannrichard/caldav-automata/commit/df8e0c8127c1db0c02a159db37514a70dac833d4))
+
+
 ## v0.6.0 (2026-06-05)
 
 ### Bug Fixes
