@@ -2,11 +2,11 @@
 # ------------------------------------
 # poll_interval  : seconds between poll cycles (default: 30)
 # rules_dir      : directory that contains *.lisp rule files (hot-reloaded)
-# state_file     : JSON file that tracks event ETags across restarts
+# state_folder   : directory where SQLite state DB is stored
 
 poll_interval: 30
 rules_dir: /rules
-state_file: /data/state.json
+state_folder: /data
 
 accounts:
   # ── iCloud (Apple Calendar) ──────────────────────────────────────────

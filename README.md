@@ -81,7 +81,7 @@ names you want to watch:
 # config/calendar.yaml
 poll_interval: 30          # seconds between poll cycles
 rules_dir: /rules          # path inside the container
-state_file: /data/state.json
+state_folder: /data        # stores SQLite state DB (state.db)
 
 accounts:
   - name: "iCloud"
@@ -432,7 +432,8 @@ new or updated event as it is processed.
 | --- | --- | --- |
 | `poll_interval` | `30` | Seconds between poll cycles |
 | `rules_dir` | `/rules` | Directory scanned for `*.lisp` rule files |
-| `state_file` | `/data/state.json` | ETag state persistence file |
+| `state_folder` | `/data` | Folder containing SQLite state DB (`state.db`) |
+| `state_db_file` | derived from `state_folder` | Optional explicit SQLite DB file path override |
 | `accounts` | *(required)* | List of CalDAV account objects |
 
 ### Account object
@@ -454,7 +455,7 @@ new or updated event as it is processed.
 
 | Volume | Purpose |
 | --- | --- |
-| `/data` | Persistent state file (`state.json`) — mount a named volume |
+| `/data` | Persistent SQLite state DB (`state.db`) — mount a named volume |
 | `/rules` | LISP rule files — mount read-only from your project |
 | `/config` | Configuration directory — mount read-only |
 

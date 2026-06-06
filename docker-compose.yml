@@ -11,7 +11,7 @@ services:
     # Optional fallback for env-var based secrets:
     # env_file: .env
     volumes:
-      - caldav-state:/data # persists state.json across restarts
+      - caldav-state:/data # persists SQLite state.db across restarts
       - ./rules:/rules:ro # LISP rule files (hot-reloaded every cycle)
       - ./config:/config:ro # calendar.yaml configuration
     environment:
