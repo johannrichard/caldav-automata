@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: CalDAV Automata",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "caldav_automata.main",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "env": {
+        "CONFIG_FILE": "${workspaceFolder}/config/calendar.yaml",
+        "LOG_LEVEL": "DEBUG"
+      }
+    }
+  ]
+}
