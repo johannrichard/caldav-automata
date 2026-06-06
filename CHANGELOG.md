@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.9.2 (2026-06-06)
+
+### Bug Fixes
+
+- :bug: derive organizer from principal for attendee adds
+  ([`5b06499`](https://github.com/johannrichard/caldav-automata/commit/5b0649928ddf8012fb947c2fd120c63055935b1a))
+
+### Documentation
+
+- :memo: clarify organizer fallback-only config
+  ([`4f34d52`](https://github.com/johannrichard/caldav-automata/commit/4f34d52e41ff58435e5eb21f5ef9a41989ddaf73))
+
+
 ## v0.9.1 (2026-06-06)
 
 ### Bug Fixes

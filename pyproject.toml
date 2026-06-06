@@ -1,6 +1,6 @@
 [project]
 name = "caldav-automata"
-version = "0.9.1"
+version = "0.9.2"
 description = "CalDAV polling daemon with a LISP rule engine"
 requires-python = ">=3.10"
 
