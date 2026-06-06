@@ -49,6 +49,11 @@
 ;                        Accepted inputs: "TRUE"/"FALSE" (also yes/no/1/0).
 ;         schedule-agent Scheduling responsibility hint.
 ;                        Typical values: "SERVER", "CLIENT", "NONE".
+;                        SERVER = let the CalDAV server send scheduling messages
+;                                 (recommended default for iCloud and most servers).
+;                        CLIENT = your client/tool is expected to handle iTIP
+;                                 scheduling messages itself.
+;                        NONE   = do not send scheduling messages for this attendee.
 ;       Parameter names are case-insensitive; values are normalized to upper-case.
 ;
 ;   (on-invite-request <action> ...)

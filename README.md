@@ -335,12 +335,17 @@ types are AND'd. A condition type that is omitted matches everything.
               schedule-agent "SERVER")
 ```
 
-| Parameter | Meaning | Typical values |
-| --- | --- | --- |
-| `role` | iTIP role in the invite | `REQ-PARTICIPANT`, `OPT-PARTICIPANT`, `NON-PARTICIPANT`, `CHAIR` |
-| `partstat` | Initial participation status | `NEEDS-ACTION`, `ACCEPTED`, `DECLINED`, `TENTATIVE`, `DELEGATED` |
-| `rsvp` | Whether a reply is requested | `TRUE` or `FALSE` (also accepts `yes/no/1/0`) |
-| `schedule-agent` | Scheduling responsibility hint | `SERVER`, `CLIENT`, `NONE` |
+- `role`: iTIP role in the invite.
+  Typical values: `REQ-PARTICIPANT`, `OPT-PARTICIPANT`,
+  `NON-PARTICIPANT`, `CHAIR`.
+- `partstat`: initial participation status.
+  Typical values: `NEEDS-ACTION`, `ACCEPTED`, `DECLINED`,
+  `TENTATIVE`, `DELEGATED`.
+- `rsvp`: whether a reply is requested.
+  Typical values: `TRUE` or `FALSE` (also accepts `yes/no/1/0`).
+- `schedule-agent`: scheduling responsibility hint.
+  Typical values: `SERVER` (server sends iTIP, recommended default),
+  `CLIENT` (client/tool sends iTIP), `NONE` (no scheduling messages).
 
 Parameter names are case-insensitive; values are normalized to upper-case.
 
