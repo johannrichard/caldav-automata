@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from importlib.metadata import PackageNotFoundError, version
 
 from .config import load_config
 from .daemon import Daemon
@@ -62,9 +63,17 @@ def _configure_logging() -> None:
 _configure_logging()
 
 
+def _resolve_app_version() -> str:
+    """Return installed package version, then APP_VERSION, then 'dev'."""
+    try:
+        return version("caldav-automata")
+    except PackageNotFoundError:
+        return os.environ.get("APP_VERSION", "dev")
+
+
 def main() -> None:
-    version = os.environ.get("APP_VERSION", "dev")
-    logging.info("CalDAV Automata %s starting", version)
+    app_version = _resolve_app_version()
+    logging.info("CalDAV Automata %s starting", app_version)
 
     config_file = os.environ.get("CONFIG_FILE", "/config/calendar.yaml")
     try:
