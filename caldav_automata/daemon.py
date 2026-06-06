@@ -467,6 +467,7 @@ def _poll_calendar(
 
     for event in events:
         url = str(event.url)
+        state_changed = False
 
         # Sync-collection responses often include only href+etag with no body.
         # Load the object lazily when needed. If that fails or still yields
@@ -481,11 +482,14 @@ def _poll_calendar(
         if not raw_ical:
             state.clear_etag(url)
             state.clear_self_written(url)
+            state_changed = True
             logger.debug(
                 "[%s] Event deleted or unavailable, dropped from state: %s",
                 cal_name,
                 url,
             )
+            if state_changed:
+                state.save()
             continue
 
         etag = _normalise_etag(getattr(event, "etag", None))
@@ -506,11 +510,14 @@ def _poll_calendar(
         if state.is_self_written(url):
             state.clear_self_written(url)
             state.set_etag(url, etag)
+            state_changed = True
             logger.debug(
                 "[%s] Skipping self-modified event (ETag refreshed): %s",
                 cal_name,
                 uid,
             )
+            if state_changed:
+                state.save()
             continue
 
         if title:
@@ -534,6 +541,7 @@ def _poll_calendar(
                     # this URL so the next poll skips the apparent change.
                     state.set_etag(url, etag)
                     state.mark_self_written(url)
+                state_changed = True
                 if title:
                     logger.info(
                         '[%s] Wrote back modified event: "%s" (%s)',
@@ -553,9 +561,14 @@ def _poll_calendar(
                 )
                 # Record the original ETag so we do not loop on failure.
                 state.set_etag(url, etag)
+                state_changed = True
         else:
             # Rules matched nothing — just record that we have seen this ETag.
             state.set_etag(url, etag)
+            state_changed = True
+
+        if state_changed:
+            state.save()
 
     return saved
 
