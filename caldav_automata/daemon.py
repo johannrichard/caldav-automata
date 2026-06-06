@@ -10,7 +10,7 @@ LISP rules before writing the modified event back to the server.
 Change detection
 ----------------
 CalDAV servers attach an ETag to every resource.  The daemon stores the
-most-recently-seen ETag for each event URL in a JSON state file so it
+most-recently-seen ETag for each event URL in a local SQLite state DB so it
 survives restarts.  The decision tree per event is:
 
     URL not in state  ->  on-create rules, write back, store new ETag
@@ -53,10 +53,10 @@ from __future__ import annotations
 
 import fnmatch
 import glob as glob_module
-import json
 import logging
 import os
 import signal
+import sqlite3
 import time
 from datetime import date, datetime
 from pathlib import Path
@@ -77,77 +77,98 @@ logger = logging.getLogger(__name__)
 
 
 class _EventState:
-    """Persistent mapping of event URL -> last-seen ETag."""
+    """SQLite-backed state storage for event/inbox ETags and sync tokens."""
 
     def __init__(self, path: str) -> None:
         self._path = Path(path)
-        self._event_data: dict[str, str] = {}
-        self._inbox_data: dict[str, str] = {}
-        self._calendar_sync_tokens: dict[str, str] = {}
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(self._path)
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._conn.execute("PRAGMA temp_store=MEMORY")
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS event_etags ("
+            "url TEXT PRIMARY KEY, "
+            "etag TEXT NOT NULL"
+            ")"
+        )
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS inbox_etags ("
+            "url TEXT PRIMARY KEY, "
+            "etag TEXT NOT NULL"
+            ")"
+        )
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS calendar_sync_tokens ("
+            "calendar_url TEXT PRIMARY KEY, "
+            "sync_token TEXT NOT NULL"
+            ")"
+        )
+        self._conn.commit()
         # In-memory set of URLs written by this process; used to skip the
         # apparent ETag change caused by our own write-back (see module docs).
         self._self_written: set[str] = set()
-        self._load()
-
-    def _load(self) -> None:
-        if self._path.exists():
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-                if isinstance(payload, dict) and (
-                    "event_etags" in payload or "inbox_etags" in payload
-                ):
-                    self._event_data = dict(payload.get("event_etags", {}))
-                    self._inbox_data = dict(payload.get("inbox_etags", {}))
-                else:
-                    # Backward compatibility with old flat {url: etag} state.
-                    self._event_data = dict(payload)
-                    self._inbox_data = {}
-                    self._calendar_sync_tokens = {}
-                logger.debug(
-                    "State loaded: %d known event(s), %d known inbox item(s) from %s",
-                    len(self._event_data),
-                    len(self._inbox_data),
-                    self._path,
-                )
-            except Exception:
-                logger.exception(
-                    "Could not read state file %s — starting fresh", self._path
-                )
+        logger.debug("State DB ready at %s", self._path)
 
     def save(self) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "event_etags": self._event_data,
-            "inbox_etags": self._inbox_data,
-        }
-        self._path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        self._conn.commit()
 
     def get_etag(self, url: str) -> str | None:
-        return self._event_data.get(url)
+        row = self._conn.execute(
+            "SELECT etag FROM event_etags WHERE url = ?", (url,)
+        ).fetchone()
+        return row[0] if row else None
 
     def set_etag(self, url: str, etag: str) -> None:
-        self._event_data[url] = etag
+        self._conn.execute(
+            "INSERT INTO event_etags(url, etag) VALUES(?, ?) "
+            "ON CONFLICT(url) DO UPDATE SET etag = excluded.etag",
+            (url, etag),
+        )
 
     def clear_etag(self, url: str) -> None:
-        self._event_data.pop(url, None)
+        self._conn.execute("DELETE FROM event_etags WHERE url = ?", (url,))
 
     def is_known(self, url: str) -> bool:
-        return url in self._event_data
+        row = self._conn.execute(
+            "SELECT 1 FROM event_etags WHERE url = ?", (url,)
+        ).fetchone()
+        return row is not None
 
     def get_inbox_etag(self, url: str) -> str | None:
-        return self._inbox_data.get(url)
+        row = self._conn.execute(
+            "SELECT etag FROM inbox_etags WHERE url = ?", (url,)
+        ).fetchone()
+        return row[0] if row else None
 
     def set_inbox_etag(self, url: str, etag: str) -> None:
-        self._inbox_data[url] = etag
+        self._conn.execute(
+            "INSERT INTO inbox_etags(url, etag) VALUES(?, ?) "
+            "ON CONFLICT(url) DO UPDATE SET etag = excluded.etag",
+            (url, etag),
+        )
 
     def is_known_inbox(self, url: str) -> bool:
-        return url in self._inbox_data
+        row = self._conn.execute(
+            "SELECT 1 FROM inbox_etags WHERE url = ?", (url,)
+        ).fetchone()
+        return row is not None
 
     def get_calendar_sync_token(self, calendar_url: str) -> str | None:
-        return self._calendar_sync_tokens.get(calendar_url)
+        row = self._conn.execute(
+            "SELECT sync_token FROM calendar_sync_tokens WHERE calendar_url = ?",
+            (calendar_url,),
+        ).fetchone()
+        return row[0] if row else None
 
     def set_calendar_sync_token(self, calendar_url: str, token: str) -> None:
-        self._calendar_sync_tokens[calendar_url] = token
+        self._conn.execute(
+            "INSERT INTO calendar_sync_tokens(calendar_url, sync_token) "
+            "VALUES(?, ?) "
+            "ON CONFLICT(calendar_url) DO UPDATE "
+            "SET sync_token = excluded.sync_token",
+            (calendar_url, token),
+        )
 
     def mark_self_written(self, url: str) -> None:
         self._self_written.add(url)
@@ -769,7 +790,14 @@ class Daemon:
         self._config = config
         self._running = True
         self._sigint_count = 0
-        self._state = _EventState(config.get("state_file", "/data/state.json"))
+        state_db_file = config.get("state_db_file")
+        state_folder = config.get("state_folder")
+        if not state_db_file and state_folder:
+            state_db_file = str(Path(state_folder) / "state.db")
+        if not state_db_file:
+            legacy_state = config.get("state_file", "/data/state.json")
+            state_db_file = str(Path(legacy_state).with_suffix(".db"))
+        self._state = _EventState(state_db_file)
 
         signal.signal(signal.SIGTERM, self._handle_stop)
         signal.signal(signal.SIGINT, self._handle_stop)
