@@ -19,23 +19,11 @@ applies any actions (add attendees, set alerts, …), and writes the modified
 event back to the server. The next poll picks up the server-assigned ETag and
 the cycle becomes a no-op until the event changes again.
 
-```
-┌───────────────────────────────────────┐
-│  Apple iCloud / any CalDAV server     │
-│                                       │
-│   Family calendar  ──┐                │
-│   Work calendar    ──┼──► poll (ETag) │
-│   …                ──┘                │
-└───────────────────────────────────────┘
-              │ new / changed?
-              ▼
-    ┌─────────────────────┐
-    │  LISP rules engine  │
-    │  rules/*.lisp       │
-    └─────────────────────┘
-              │ modified iCal
-              ▼
-    write back to CalDAV server
+```mermaid
+flowchart TD
+  S[CalDAV server] -->|new or changed ETag| R[LISP rules engine]
+  RF[rules/*.lisp] --> R
+  R -->|modified iCal| W[Write back to CalDAV server]
 ```
 
 Rules are hot-reloaded from the `/rules` directory on every poll cycle — no
@@ -118,7 +106,8 @@ accounts:
       - "Work"
 ```
 
-**iCloud URL discovery** — Use the generic base URL `https://caldav.icloud.com/`
+### iCloud URL discovery
+Use the generic base URL `https://caldav.icloud.com/`
 as-is. The CalDAV library automatically discovers your user-specific
 principal and calendar-home-set via `PROPFIND`, so you never need to
 hard-code a personal path. iCloud always requires Basic authentication with
@@ -327,13 +316,13 @@ types are AND'd. A condition type that is omitted matches everything.
 ### Actions
 
 | Action | Description |
-|---|---|
-| `(add-attendee "email@example.com")` | Add an attendee to the event (idempotent, defaults `SCHEDULE-AGENT` to `SERVER`) |
-| `(add-attendee "email@example.com" "Name" role "OPT-PARTICIPANT" partstat "NEEDS-ACTION" rsvp "TRUE" schedule-agent "CLIENT")` | Add attendee with optional attendee/scheduling parameters (override default `SERVER`) |
-| `(set-alert <minutes> "<type>")` | Add or replace an alert. Type is `DISPLAY`, `EMAIL`, or `AUDIO` |
+| --- | --- |
+| `(add-attendee "email@example.com")` | Add attendee (idempotent) |
+| `(add-attendee ... optional args ...)` | Add attendee with optional params |
+| `(set-alert mins type)` | Add/replace alert (`DISPLAY`, `EMAIL`, `AUDIO`) |
 | `(accept-invite)` | Accept inbox invite request (`METHOD:REQUEST`) |
 | `(decline-invite)` | Decline inbox invite request (`METHOD:REQUEST`) |
-| `(tentative-invite)` | Tentatively accept inbox invite request (`METHOD:REQUEST`) |
+| `(tentative-invite)` | Tentatively accept `METHOD:REQUEST` invite |
 | `(delete-inbox-item)` | Delete current inbox item after processing |
 
 ### Examples
@@ -395,31 +384,31 @@ new or updated event as it is processed.
 ## Configuration reference
 
 | Key | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `poll_interval` | `30` | Seconds between poll cycles |
 | `rules_dir` | `/rules` | Directory scanned for `*.lisp` rule files |
 | `state_file` | `/data/state.json` | ETag state persistence file |
 | `accounts` | *(required)* | List of CalDAV account objects |
 
-**Account object**
+### Account object
 
 | Key | Description |
-|---|---|
+| --- | --- |
 | `name` | Display name used in log output |
 | `url` | CalDAV base URL (e.g. `https://caldav.icloud.com/`) |
 | `username` | Account username / Apple ID |
 | `password` | Account password or `${ENV_VAR}` reference |
-| `calendars` | List of calendar display-names to watch; supports wildcards; `["*"]` watches all |
-| `ssl_verify_cert` | *(optional)* `true` (default) or `false` to skip TLS verification for self-signed certs |
-| `auth_type` | *(optional)* HTTP authentication type, e.g. `"basic"` (iCloud default) or `"digest"` |
-| `headers` | *(optional)* Map of extra HTTP headers to send with every request |
+| `calendars` | Calendar names/wildcards to watch; `["*"]` watches all |
+| `ssl_verify_cert` | *(optional)* `true` (default) or `false` |
+| `auth_type` | *(optional)* Auth type, e.g. `"basic"` or `"digest"` |
+| `headers` | *(optional)* Extra HTTP headers sent with every request |
 
 ---
 
 ## Docker volumes
 
 | Volume | Purpose |
-|---|---|
+| --- | --- |
 | `/data` | Persistent state file (`state.json`) — mount a named volume |
 | `/rules` | LISP rule files — mount read-only from your project |
 | `/config` | Configuration directory — mount read-only |
@@ -429,10 +418,10 @@ new or updated event as it is processed.
 ## Environment variables
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `CONFIG_FILE` | `/config/calendar.yaml` | Path to the configuration file |
-| `LOG_LEVEL` | `INFO` | Python logging level (`DEBUG`, `INFO`, `WARNING`, …) |
-| Any `${VAR}` used in the config | — | Expanded at load time from the container environment |
+| `LOG_LEVEL` | `INFO` | Python logging level (for example `DEBUG` or `INFO`) |
+| Any `${VAR}` used in config | — | Expanded from environment at load time |
 
 ---
 
@@ -477,7 +466,7 @@ Formatting is also enforced in CI by `.github/workflows/python-format.yml`.
 
 ## Project layout
 
-```
+```text
 caldav_automata/
   __init__.py     package init
   config.py       YAML config loader with ${ENV_VAR} expansion
