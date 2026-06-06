@@ -297,37 +297,27 @@ def _normalise_calendar_address(value: str) -> str:
     return f"mailto:{raw}"
 
 
-def _has_attendees(component) -> bool:
-    """Return True when *component* has at least one ATTENDEE."""
-    attendees = component.get("ATTENDEE")
-    if attendees is None:
-        attendees = component.get("attendee")
-    if attendees is None:
-        return False
-    if isinstance(attendees, list):
-        return len(attendees) > 0
-    return True
+def _principal_owner_email(principal) -> str | None:
+    """Return a principal calendar user address preferring mailto: forms."""
+    try:
+        addresses = principal.calendar_user_address_set()
+    except Exception:
+        return None
 
+    if not isinstance(addresses, list):
+        addresses = [addresses]
 
-def _set_organizer_if_missing(component, organizer: str) -> bool:
-    """Set ORGANIZER on *component* only when it is currently empty."""
-    target = _normalise_calendar_address(organizer)
-    if not target:
-        return False
-
-    current = str(component.get("ORGANIZER", "")).strip()
-    if current:
-        return False
-
-    component["ORGANIZER"] = target
-    return True
-
-
-def _is_add_attendee_action(action: Any) -> bool:
-    """Return True when *action* is an add-attendee action form."""
-    return (
-        isinstance(action, list) and bool(action) and str(action[0]) == "add-attendee"
-    )
+    fallback = None
+    for raw in addresses:
+        text = str(raw).strip()
+        if not text:
+            continue
+        lowered = text.lower()
+        if lowered.startswith("mailto:"):
+            return _normalise_calendar_address(text)
+        if fallback is None:
+            fallback = _normalise_calendar_address(text)
+    return fallback
 
 
 def _matches(
@@ -403,7 +393,7 @@ def _apply_rules(
     calendar_name: str,
     is_new: bool,
     rules: list[Rule],
-    organizer_default: str = "",
+    owner_email: str | None = None,
 ) -> str | None:
     """
     Apply matching rules to *raw_ical*.
@@ -421,7 +411,6 @@ def _apply_rules(
     for component in cal.walk():
         if component.name != "VEVENT":
             continue
-        attendee_action_seen = False
         subject = str(component.get("SUMMARY", ""))
         note = str(component.get("DESCRIPTION", ""))
         organizer = str(component.get("ORGANIZER", ""))
@@ -431,24 +420,13 @@ def _apply_rules(
                 continue
             actions = rule.on_create if is_new else rule.on_update
             for action in actions:
-                if _is_add_attendee_action(action):
-                    attendee_action_seen = True
                 try:
-                    changed = apply_action(component, action) or changed
+                    changed = (
+                        apply_action(component, action, owner_email=owner_email)
+                        or changed
+                    )
                 except Exception:
                     logger.exception("Error applying action %r", action)
-
-        if organizer_default and attendee_action_seen and _has_attendees(component):
-            organizer_set = _set_organizer_if_missing(component, organizer_default)
-            if organizer_set:
-                logger.debug(
-                    "[%s] Missing ORGANIZER on attended event; defaulted to %r "
-                    "(summary=%r)",
-                    calendar_name,
-                    _normalise_calendar_address(organizer_default),
-                    subject,
-                )
-            changed = organizer_set or changed
 
     if not changed:
         return None
@@ -545,7 +523,7 @@ def _poll_calendar(
     calendar: caldav.Calendar,
     state: _EventState,
     rules: list[Rule],
-    organizer_default: str = "",
+    owner_email: str | None = None,
 ) -> int:
     """
     Fetch all events in *calendar*, apply rules to new/changed ones, and
@@ -654,7 +632,7 @@ def _poll_calendar(
             cal_name,
             is_new,
             rules,
-            organizer_default=organizer_default,
+            owner_email=owner_email,
         )
 
         if modified_ical is not None:
@@ -832,17 +810,17 @@ def _matches_watch_pattern(name: str, patterns: list[str]) -> bool:
     return False
 
 
-def _configured_organizer_defaults(accounts: list[dict]) -> list[str]:
-    """Return human-readable account organizer defaults for startup logs."""
-    defaults: list[str] = []
+def _configured_organizer_fallbacks(accounts: list[dict]) -> list[str]:
+    """Return human-readable account organizer fallback values for logs."""
+    fallbacks: list[str] = []
     for account in accounts:
         label = str(account.get("name", account.get("url", "?")))
         organizer = str(account.get("organizer", "")).strip()
         if not organizer:
             continue
         cal_address = _normalise_calendar_address(organizer)
-        defaults.append(f"account={label!r} organizer={cal_address!r}")
-    return defaults
+        fallbacks.append(f"account={label!r} organizer={cal_address!r}")
+    return fallbacks
 
 
 def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
@@ -851,7 +829,7 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
     username = account.get("username", "")
     secret = account.get("password", "")
     watch_patterns = _normalise_watch_entries(account.get("calendars", ["*"]))
-    organizer_default = str(account.get("organizer", "")).strip()
+    organizer_fallback = str(account.get("organizer", "")).strip()
 
     # Optional per-account DAVClient knobs — useful for iCloud and other
     # servers that require non-default TLS or authentication settings.
@@ -881,6 +859,24 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
         return
 
     scheduling_supported = False
+    owner_email = _principal_owner_email(principal)
+    if owner_email:
+        logger.info("[%s] Principal organizer email detected: %s", label, owner_email)
+    elif organizer_fallback:
+        owner_email = _normalise_calendar_address(organizer_fallback)
+        logger.warning(
+            "[%s] Could not resolve principal calendar-user-address-set; "
+            "falling back to configured organizer %s",
+            label,
+            owner_email,
+        )
+    else:
+        logger.warning(
+            "[%s] Could not resolve principal calendar-user-address-set and no "
+            "organizer fallback configured",
+            label,
+        )
+
     try:
         if hasattr(client, "supports_scheduling"):
             scheduling_supported = bool(client.supports_scheduling())
@@ -903,7 +899,7 @@ def _poll_account(account: dict, state: _EventState, rules: list[Rule]) -> None:
             calendar,
             state,
             rules,
-            organizer_default=organizer_default,
+            owner_email=owner_email,
         )
         if count:
             logger.info(
@@ -986,21 +982,21 @@ class Daemon:
             rules_dir,
         )
 
-        organizer_defaults = _configured_organizer_defaults(accounts)
-        if organizer_defaults:
+        organizer_fallbacks = _configured_organizer_fallbacks(accounts)
+        if organizer_fallbacks:
             logger.info(
-                "Configured %d account organizer default(s)",
-                len(organizer_defaults),
+                "Configured %d account organizer fallback(s)",
+                len(organizer_fallbacks),
             )
-            for entry in organizer_defaults[:20]:
-                logger.info("Organizer default: %s", entry)
-            if len(organizer_defaults) > 20:
+            for entry in organizer_fallbacks[:20]:
+                logger.info("Organizer fallback: %s", entry)
+            if len(organizer_fallbacks) > 20:
                 logger.info(
-                    "Organizer default: +%d more",
-                    len(organizer_defaults) - 20,
+                    "Organizer fallback: +%d more",
+                    len(organizer_fallbacks) - 20,
                 )
         else:
-            logger.info("No account organizer defaults configured")
+            logger.info("No account organizer fallbacks configured")
 
         while self._running:
             current_snapshot = _rule_files_snapshot(rules_dir)

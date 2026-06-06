@@ -92,6 +92,7 @@ def add_attendee(
     partstat: str = "NEEDS-ACTION",
     rsvp: str | bool = "TRUE",
     schedule_agent: str = "SERVER",
+    owner_email: str | None = None,
 ) -> bool:
     """
     Add an ATTENDEE to *event* (skipped silently if already present).
@@ -117,6 +118,15 @@ def add_attendee(
             email,
         )
         return False
+
+    organizer = event.get("organizer")
+    owner_cal_address = str(owner_email or "").strip()
+    if organizer is None and owner_cal_address:
+        event.add("organizer", vCalAddress(owner_cal_address), encode=False)
+        logger.warning(
+            "add-attendee: event had no ORGANIZER; set to %s",
+            owner_cal_address,
+        )
 
     schedule_agent_value = str(schedule_agent).upper() if schedule_agent else ""
     partstat_value = str(partstat).upper()
@@ -235,7 +245,9 @@ def delete_inbox_item(_event, inbox_item=None) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def apply_action(event, action: list, inbox_item=None) -> bool:
+def apply_action(
+    event, action: list, inbox_item=None, owner_email: str | None = None
+) -> bool:
     """
     Dispatch a parsed Lisp action form to the matching handler.
 
@@ -285,6 +297,7 @@ def apply_action(event, action: list, inbox_item=None) -> bool:
                 )
                 options[canonical] = value
 
+        options["owner_email"] = owner_email
         return add_attendee(event, email, display_name, **options)
 
     elif name == "set-alert":
