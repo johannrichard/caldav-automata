@@ -228,7 +228,7 @@ For production, pin `docker-compose.yml` to an explicit release tag:
 image: ghcr.io/johannrichard/caldav-automata:1.2.3
 ```
 
-> Note: GHCR retention keeps only the 5 most recent releases, so older pinned
+> Note: GHCR retention keeps only the 15 most recent releases, so older pinned
 > tags are eventually pruned.
 
 ---

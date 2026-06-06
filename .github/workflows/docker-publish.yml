@@ -1,6 +1,13 @@
 name: Build and publish Docker image
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to publish (example: v0.9.3)"
+        required: true
+        type: string
+
   workflow_call:
     inputs:
       release_tag:
@@ -16,11 +23,13 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.event.inputs.release_tag }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_tag }}
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -41,9 +50,9 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}},value=${{ inputs.release_tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.release_tag }}
-            type=semver,pattern={{major}},value=${{ inputs.release_tag }}
+            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.RELEASE_TAG }}
+            type=semver,pattern={{major}},value=${{ env.RELEASE_TAG }}
             type=raw,value=latest
 
       - name: Build and push multi-arch image
@@ -56,7 +65,7 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: BUILD_VERSION=${{ inputs.release_tag }}
+          build-args: BUILD_VERSION=${{ env.RELEASE_TAG }}
 
       - name: Attest Docker image provenance
         uses: actions/attest-build-provenance@v2
@@ -83,5 +92,5 @@ jobs:
           package-name: ${{ steps.package.outputs.name }}
           package-type: container
           # Keep this value in sync with README.md ("Docker image publishing and retention").
-          min-versions-to-keep: 5
+          min-versions-to-keep: 15
           delete-only-untagged-versions: false
