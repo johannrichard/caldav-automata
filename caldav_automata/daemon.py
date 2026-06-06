@@ -552,7 +552,7 @@ def _poll_calendar(
         if modified_ical is not None:
             try:
                 event.data = modified_ical
-                calendar.save_event(event)
+                calendar.add_event(modified_ical)
                 new_etag = _normalise_etag(getattr(event, "etag", None))
                 if new_etag:
                     state.set_etag(url, new_etag)
