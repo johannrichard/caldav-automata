@@ -88,6 +88,7 @@ accounts:
     url: "https://caldav.icloud.com/"
     username: "you@icloud.com"
     password_file: "/run/secrets/icloud_password"
+    organizer: "you@icloud.com"
     calendars:
       - "Family"
       - "Work"
@@ -115,6 +116,20 @@ an App-Specific Password (see step 1).
 
 Calendar names support `fnmatch` wildcards. Use `["*"]` to watch every
 calendar on an account.
+
+Set `organizer` on the account to enforce ORGANIZER on new/updated events
+that have at least one attendee.
+
+`calendars` entries are string patterns:
+
+```yaml
+calendars:
+  - "Family*"
+  - "Work"
+```
+
+When `organizer` is set on the account, CalDAV Automata enforces that
+ORGANIZER value on new/updated events that have at least one attendee.
 
 ### 4 — Write your first rule
 
@@ -433,7 +448,7 @@ new or updated event as it is processed.
 | `poll_interval` | `30` | Seconds between poll cycles |
 | `rules_dir` | `/rules` | Directory scanned for `*.lisp` rule files |
 | `state_folder` | `/data` | Folder containing SQLite state DB (`state.db`) |
-| `state_db_file` | derived from `state_folder` | Optional explicit SQLite DB file path override |
+| `state_db_file` | derived from `state_folder` | Optional DB path override |
 | `accounts` | *(required)* | List of CalDAV account objects |
 
 ### Account object
@@ -444,10 +459,13 @@ new or updated event as it is processed.
 | `url` | CalDAV base URL (e.g. `https://caldav.icloud.com/`) |
 | `username` | Account username / Apple ID |
 | `password` | Account password or `${ENV_VAR}` reference |
+| `organizer` | *(optional)* Organizer address to enforce on attended events |
 | `calendars` | Calendar names/wildcards to watch; `["*"]` watches all |
 | `ssl_verify_cert` | *(optional)* `true` (default) or `false` |
 | `auth_type` | *(optional)* Auth type, e.g. `"basic"` or `"digest"` |
 | `headers` | *(optional)* Extra HTTP headers sent with every request |
+
+`calendars` entries must be plain strings.
 
 ---
 
