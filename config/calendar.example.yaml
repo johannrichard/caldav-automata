@@ -23,6 +23,8 @@ accounts:
     url: "https://caldav.icloud.com/"
     username: "you@icloud.com"
     password_file: "/run/secrets/icloud_password"
+    # Optional fallback-only organizer. Used only if principal
+    # calendar-user-address-set discovery fails.
     organizer: "you@icloud.com"
     # Or fall back to an environment variable:
     # password: "${ICLOUD_PASSWORD}"
