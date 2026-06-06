@@ -1,6 +1,67 @@
 # CHANGELOG
 
 
+## v0.8.0 (2026-06-06)
+
+### Bug Fixes
+
+- :bug: abort on second ctrl-c
+  ([`75092ad`](https://github.com/johannrichard/caldav-automata/commit/75092ad08189b6f6e53cddd4365fabb34db808a1))
+
+- :bug: align RFC6638 scheduling invite handling
+  ([`afa7772`](https://github.com/johannrichard/caldav-automata/commit/afa7772a04b884d8ae48f042215e41a2fd27dfe6))
+
+- :bug: flush event state after each event
+  ([`eb70944`](https://github.com/johannrichard/caldav-automata/commit/eb709446bbaf8893c402c2c6d83561b0bf006a51))
+
+- :bug: handle delta sync events without payload
+  ([`3c2dda2`](https://github.com/johannrichard/caldav-automata/commit/3c2dda2a3bcb07a08a7b9c8eeaacf02023a720b0))
+
+- 🐛 pass ical string to calendar.add_event instead of object
+  ([`63313cb`](https://github.com/johannrichard/caldav-automata/commit/63313cb603fa9f076cc95d7ca462cb302312282b))
+
+### Chores
+
+- :wrench: add VS Code Python debug config
+  ([`eea4058`](https://github.com/johannrichard/caldav-automata/commit/eea40586528c872639f2be816f1870d9d7443865))
+
+- :wrench: update launch logging env
+  ([`18cf867`](https://github.com/johannrichard/caldav-automata/commit/18cf867007aa92b948a24cefce8db6ea567c25be))
+
+- 🙈 ignore .DS_Store files
+  ([`59666d6`](https://github.com/johannrichard/caldav-automata/commit/59666d67b3d99fa7e2b9813fae594392f4b6a614))
+
+### Documentation
+
+- :memo: clarify add-attendee scheduling options
+  ([`4a8b290`](https://github.com/johannrichard/caldav-automata/commit/4a8b2901b322d0492da2de68aea0ad52efb5517a))
+
+- :memo: document log color environment settings
+  ([`991c872`](https://github.com/johannrichard/caldav-automata/commit/991c872f049ed1982913f8c2b2cbaaadb52439e4))
+
+- :memo: explain add-attendee option values
+  ([`3fdbc5b`](https://github.com/johannrichard/caldav-automata/commit/3fdbc5b0dc49a6f3c548e800af4a7c85b0e4cab4))
+
+- :memo: fix README markdownlint violations
+  ([`f009a34`](https://github.com/johannrichard/caldav-automata/commit/f009a34ef18962e1dc0dc394b4fc0fd45cb56fee))
+
+- 📝 update config and docs for SQLite state storage
+  ([`aff220b`](https://github.com/johannrichard/caldav-automata/commit/aff220b0746c93ce635c6cbf7ecea7e47c3342a6))
+
+### Features
+
+- :sparkles: add configurable colored logging
+  ([`5b86ba0`](https://github.com/johannrichard/caldav-automata/commit/5b86ba098a8b3de61f94963e881fe9ab0542ab49))
+
+- ⚠️ warn when rules reload after disk changes
+  ([`e30cf54`](https://github.com/johannrichard/caldav-automata/commit/e30cf548de11699f5e24d627040fa77aae5775b2))
+
+### Refactoring
+
+- ♻️ replace JSON state file with SQLite-backed state DB
+  ([`a30339e`](https://github.com/johannrichard/caldav-automata/commit/a30339e6e7bdcfcdb5db511f7573d3034c3a2c2d))
+
+
 ## v0.7.0 (2026-06-06)
 
 ### Build System
