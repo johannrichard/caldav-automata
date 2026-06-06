@@ -17,6 +17,8 @@ Environment=ICLOUD_PASSWORD_FILE=%d/icloud_password
 ExecStart=/opt/caldav-automata/.venv/bin/caldav-automata
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=20
+TimeoutStopFailureMode=kill
 
 # Basic hardening
 NoNewPrivileges=true

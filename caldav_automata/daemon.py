@@ -980,8 +980,8 @@ class Daemon:
             logger.error("Second Ctrl-C received — aborting immediately")
             raise SystemExit(130)
 
-        logger.info("Shutdown signal received — stopping after current cycle")
-        self._running = False
+        logger.info("SIGTERM received — terminating now for systemd stop")
+        raise SystemExit(0)
 
     def run(self) -> None:
         interval = int(self._config.get("poll_interval", 30))
