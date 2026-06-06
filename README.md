@@ -253,6 +253,12 @@ when an event is created or updated, or when scheduling inbox messages arrive.
     <action> …)
 
   (on-invite-reply       ; actions for inbox METHOD:REPLY items
+    <action> …)
+
+  (on-invite-cancel      ; actions for inbox METHOD:CANCEL items
+    <action> …)
+
+  (on-invite-add         ; actions for inbox METHOD:ADD items
     <action> …))
 ```
 
@@ -348,6 +354,9 @@ types are AND'd. A condition type that is omitted matches everything.
 - `partstat`: initial participation status.
   Typical values: `NEEDS-ACTION`, `ACCEPTED`, `DECLINED`,
   `TENTATIVE`, `DELEGATED`.
+  Note: when `schedule-agent` is `SERVER` (or omitted), this project
+  coerces `partstat` to `NEEDS-ACTION` to align with RFC 6638 organizer
+  scheduling expectations and avoid server-side precondition failures.
 - `rsvp`: whether a reply is requested.
   Typical values: `TRUE` or `FALSE` (also accepts `yes/no/1/0`).
 - `schedule-agent`: scheduling responsibility hint.
@@ -402,6 +411,11 @@ Parameter names are case-insensitive; values are normalized to upper-case.
 ; Remove organizer reply notifications from inbox.
 (rule
   (on-invite-reply
+    (delete-inbox-item)))
+
+; Remove organizer cancellation notifications from inbox.
+(rule
+  (on-invite-cancel
     (delete-inbox-item)))
 ```
 

@@ -23,6 +23,14 @@ Supported rule syntax
         (accept-invite)
         (delete-inbox-item))
       (on-invite-reply        ; triggered for inbox METHOD:REPLY items
+                (delete-inbox-item))
+            (on-invite-cancel       ; triggered for inbox METHOD:CANCEL items
+                (delete-inbox-item))
+            (on-invite-add          ; triggered for inbox METHOD:ADD items
+                (delete-inbox-item))
+            (on-invite-cancel       ; triggered for inbox METHOD:CANCEL items
+                (delete-inbox-item))
+            (on-invite-add          ; triggered for inbox METHOD:ADD items
         (delete-inbox-item)))
 
 Within each condition type (calendar, subject, note, organizer, date-on,
@@ -124,6 +132,8 @@ class Rule:
     on_update: list = field(default_factory=list)
     on_invite_request: list = field(default_factory=list)
     on_invite_reply: list = field(default_factory=list)
+    on_invite_cancel: list = field(default_factory=list)
+    on_invite_add: list = field(default_factory=list)
 
     def __repr__(self) -> str:
         return (
@@ -137,7 +147,9 @@ class Rule:
             f"on_create={self.on_create!r}, "
             f"on_update={self.on_update!r}, "
             f"on_invite_request={self.on_invite_request!r}, "
-            f"on_invite_reply={self.on_invite_reply!r})"
+            f"on_invite_reply={self.on_invite_reply!r}, "
+            f"on_invite_cancel={self.on_invite_cancel!r}, "
+            f"on_invite_add={self.on_invite_add!r})"
         )
 
 
@@ -193,6 +205,10 @@ def _compile_form(form) -> Rule | None:
             rule.on_invite_request = [c for c in clause[1:] if isinstance(c, list)]
         elif head == "on-invite-reply":
             rule.on_invite_reply = [c for c in clause[1:] if isinstance(c, list)]
+        elif head == "on-invite-cancel":
+            rule.on_invite_cancel = [c for c in clause[1:] if isinstance(c, list)]
+        elif head == "on-invite-add":
+            rule.on_invite_add = [c for c in clause[1:] if isinstance(c, list)]
     return rule
 
 

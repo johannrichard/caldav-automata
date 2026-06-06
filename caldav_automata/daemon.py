@@ -340,7 +340,13 @@ def _apply_rules(
 
 def _has_invite_rules(rules: list[Rule]) -> bool:
     """Return True when any rule has scheduling inbox actions."""
-    return any(rule.on_invite_request or rule.on_invite_reply for rule in rules)
+    return any(
+        rule.on_invite_request
+        or rule.on_invite_reply
+        or rule.on_invite_cancel
+        or rule.on_invite_add
+        for rule in rules
+    )
 
 
 def _first_vevent(raw_ical: str):
@@ -380,9 +386,16 @@ def _apply_inbox_rules(
     for rule in rules:
         if not _matches(rule, "inbox", subject, note, organizer, start_date):
             continue
-        actions = (
-            rule.on_invite_request if invite_type == "request" else rule.on_invite_reply
-        )
+        if invite_type == "request":
+            actions = rule.on_invite_request
+        elif invite_type == "reply":
+            actions = rule.on_invite_reply
+        elif invite_type == "cancel":
+            actions = rule.on_invite_cancel
+        elif invite_type == "add":
+            actions = rule.on_invite_add
+        else:
+            actions = []
         for action in actions:
             try:
                 changed = (
@@ -566,6 +579,46 @@ def _poll_inbox(
         return 0
 
     handled = 0
+
+    def _classify_invite_type(item, raw_ical: str) -> str | None:
+        # Prefer caldav-python helpers when available.
+        probes = (
+            ("request", "is_invite_request"),
+            ("reply", "is_invite_reply"),
+            ("cancel", "is_invite_cancel"),
+            ("add", "is_invite_add"),
+        )
+        for invite_type, method_name in probes:
+            method = getattr(item, method_name, None)
+            if callable(method):
+                try:
+                    if bool(method()):
+                        return invite_type
+                except Exception:
+                    logger.debug(
+                        "[%s] Inbox classifier %s failed for %s",
+                        label,
+                        method_name,
+                        getattr(item, "url", "?"),
+                        exc_info=True,
+                    )
+
+        # Fallback: inspect VCALENDAR METHOD directly.
+        try:
+            cal = Calendar.from_ical(raw_ical)
+            method = str(cal.get("METHOD", "")).strip().upper()
+            if method in {"REQUEST", "REPLY", "CANCEL", "ADD"}:
+                return method.lower()
+        except Exception:
+            logger.debug(
+                "[%s] Could not parse inbox item method for %s",
+                label,
+                getattr(item, "url", "?"),
+                exc_info=True,
+            )
+
+        return None
+
     for item in items:
         url = str(item.url)
         etag = _normalise_etag(getattr(item, "etag", None))
@@ -578,19 +631,11 @@ def _poll_inbox(
         title, date_str = _get_event_info(item.data)
         uid = url.rstrip("/").split("/")[-1]
 
-        try:
-            is_request = bool(item.is_invite_request())
-            is_reply = bool(item.is_invite_reply())
-        except Exception:
-            logger.exception("[%s] Could not classify inbox item %s", label, uid)
+        invite_type = _classify_invite_type(item, item.data)
+        if invite_type is None:
             state.set_inbox_etag(url, etag)
             continue
 
-        if not is_request and not is_reply:
-            state.set_inbox_etag(url, etag)
-            continue
-
-        invite_type = "request" if is_request else "reply"
         if title:
             logger.info(
                 '[%s] %s inbox item: "%s" (%s)', label, invite_type, title, date_str

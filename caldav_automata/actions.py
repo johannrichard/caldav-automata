@@ -118,13 +118,27 @@ def add_attendee(
         )
         return False
 
+    schedule_agent_value = str(schedule_agent).upper() if schedule_agent else ""
+    partstat_value = str(partstat).upper()
+    if schedule_agent_value in {"", "SERVER"} and partstat_value != "NEEDS-ACTION":
+        # RFC 6638 allows servers to reject organizer-set PARTSTAT values other
+        # than NEEDS-ACTION when SERVER scheduling applies.
+        logger.warning(
+            "add-attendee: coerced partstat %s -> NEEDS-ACTION for %s "
+            "(schedule-agent=%s)",
+            partstat_value,
+            email,
+            schedule_agent_value or "SERVER",
+        )
+        partstat_value = "NEEDS-ACTION"
+
     addr = vCalAddress(f"mailto:{email}")
     addr.params["CN"] = name or email
     addr.params["ROLE"] = role.upper()
-    addr.params["PARTSTAT"] = partstat.upper()
+    addr.params["PARTSTAT"] = partstat_value
     addr.params["RSVP"] = _to_ical_bool(rsvp)
-    if schedule_agent:
-        addr.params["SCHEDULE-AGENT"] = str(schedule_agent).upper()
+    if schedule_agent_value:
+        addr.params["SCHEDULE-AGENT"] = schedule_agent_value
     event.add("attendee", addr, encode=False)
     logger.info("Added attendee %s (%s)", email, name or email)
     return True
