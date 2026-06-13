@@ -254,12 +254,39 @@ python3 -m venv /opt/caldav-automata/.venv
   "git+https://github.com/johannrichard/caldav-automata.git"
 ```
 
-This installs the `caldav-automata` CLI entrypoint from `pyproject.toml`.
+This installs the `caldav-automata` CLI entrypoint from `pyproject.toml`. Example configuration
+and rule files are installed into the venv's site-packages. Find them with:
+
+```sh
+SITE_PACKAGES=$(/opt/caldav-automata/.venv/bin/python -c "import site; print(site.getsitepackages()[0])")
+ls $SITE_PACKAGES/config/
+ls $SITE_PACKAGES/rules/
+ls $SITE_PACKAGES/deploy/
+```
+
+Copy the examples to your system location:
+
+```sh
+SITE_PACKAGES=$(/opt/caldav-automata/.venv/bin/python -c "import site; print(site.getsitepackages()[0])")
+sudo cp $SITE_PACKAGES/config/calendar.example.yaml /etc/caldav-automata/calendar.yaml
+sudo cp $SITE_PACKAGES/deploy/systemd/caldav-automata.env.example /etc/default/caldav-automata
+sudo cp $SITE_PACKAGES/deploy/systemd/caldav-automata.service /etc/systemd/system/
+# Copy rule examples to your rules directory
+sudo cp $SITE_PACKAGES/rules/*.lisp /etc/caldav-automata/rules/
+```
 
 Alternative (single-user install):
 
 ```sh
 pipx install "git+https://github.com/johannrichard/caldav-automata.git"
+```
+
+With `pipx`, find the site-packages location:
+
+```sh
+SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+ls $SITE_PACKAGES/config/
+ls $SITE_PACKAGES/rules/
 ```
 
 ### Run with systemd
@@ -275,37 +302,56 @@ paths before enabling the service:
 - `ExecStart`
 - `Environment=CONFIG_FILE` (or `/etc/default/caldav-automata`)
 
-The service also loads the iCloud password from an encrypted systemd
-credential. It exposes the decrypted runtime path as `ICLOUD_PASSWORD_FILE`,
-and the example `calendar.yaml` uses:
+The service loads the iCloud password from an encrypted systemd credential,
+which is decrypted at runtime and exposed as `ICLOUD_PASSWORD_FILE`. The
+example `calendar.yaml` uses:
 
 ```yaml
 password_file: "${ICLOUD_PASSWORD_FILE}"
 ```
 
-Create the encrypted credential file at:
+To set up the encrypted credential:
 
-```text
-/etc/caldav-automata/credentials/icloud_password.cred
-```
+1. Create a temporary file with your password in `/run` (in-memory):
 
-using `systemd-creds encrypt --pretty` and keep that path in sync with the
-`LoadCredentialEncrypted=` line in the unit file.
+   ```sh
+   sudo tee /run/icloud_password.txt <<< 'your-app-specific-password' > /dev/null
+   chmod 600 /run/icloud_password.txt
+   ```
+
+2. Encrypt it using `systemd-creds encrypt` (without `--pretty`):
+
+   ```sh
+   sudo systemd-creds encrypt --name icloud_password \
+     </run/icloud_password.txt \
+     >/var/caldav-automata/icloud_password.cred
+   ```
+
+3. Remove the temporary password file:
+
+   ```sh
+   sudo rm /run/icloud_password.txt
+   ```
+
+Keep the encrypted credential path in sync with the `LoadCredentialEncrypted=`
+line in the unit file (default: `/var/caldav-automata/icloud_password.cred`).
 
 Templates are provided in `deploy/systemd/`:
 
 - `deploy/systemd/caldav-automata.service`
 - `deploy/systemd/caldav-automata.env.example`
 
-Typical setup:
+Typical setup after pip install:
 
 ```sh
+SITE_PACKAGES=$(/opt/caldav-automata/.venv/bin/python -c "import site; print(site.getsitepackages()[0])")
 sudo useradd --system --home /nonexistent --shell /usr/sbin/nologin caldav
-sudo mkdir -p /etc/caldav-automata /var/lib/caldav-automata /etc/default
-sudo cp config/calendar.example.yaml /etc/caldav-automata/calendar.yaml
-sudo cp deploy/systemd/caldav-automata.env.example /etc/default/caldav-automata
-sudo cp deploy/systemd/caldav-automata.service /etc/systemd/system/
-sudo mkdir -p /etc/caldav-automata/credentials
+sudo mkdir -p /etc/caldav-automata /var/caldav-automata /etc/default
+sudo cp $SITE_PACKAGES/config/calendar.example.yaml /etc/caldav-automata/calendar.yaml
+sudo cp $SITE_PACKAGES/deploy/systemd/caldav-automata.env.example /etc/default/caldav-automata
+sudo cp $SITE_PACKAGES/deploy/systemd/caldav-automata.service /etc/systemd/system/
+sudo chown caldav:caldav /var/caldav-automata
+# Now set up the encrypted credential (see steps above)
 sudo systemctl daemon-reload
 sudo systemctl enable --now caldav-automata.service
 sudo systemctl status caldav-automata.service
