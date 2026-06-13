@@ -1,0 +1,4 @@
+include README.md LICENSE
+recursive-include config *.yaml
+recursive-include rules *.lisp
+recursive-include deploy *
