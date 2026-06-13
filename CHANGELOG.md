@@ -1,6 +1,24 @@
 # CHANGELOG
 
 
+## v0.10.3 (2026-06-13)
+
+### Build System
+
+- 📦 include config, rules, and deploy files in package
+  ([`5b092d4`](https://github.com/johannrichard/caldav-automata/commit/5b092d48e5f1981dde47233288edaec8ad7eee7c))
+
+### Chores
+
+- 🔧 update systemd credential storage path to /var/caldav-automata
+  ([`5141346`](https://github.com/johannrichard/caldav-automata/commit/51413462b0784497aa5144655bcb1990545854c3))
+
+### Documentation
+
+- 📚 add pip install instructions and improve systemd credential setup
+  ([`dc8449a`](https://github.com/johannrichard/caldav-automata/commit/dc8449ac9987369c3fea99c4c7bbc503f2b6c05c))
+
+
 ## v0.10.2 (2026-06-06)
 
 ### Bug Fixes
