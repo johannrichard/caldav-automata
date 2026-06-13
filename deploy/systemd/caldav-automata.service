@@ -12,7 +12,7 @@ EnvironmentFile=-/etc/default/caldav-automata
 # Optional overrides if not set in EnvironmentFile
 Environment=CONFIG_FILE=/etc/caldav-automata/calendar.yaml
 Environment=LOG_LEVEL=INFO
-LoadCredentialEncrypted=icloud_password:/etc/caldav-automata/credentials/icloud_password.cred
+LoadCredentialEncrypted=icloud_password:/var/caldav-automata/icloud_password.cred
 Environment=ICLOUD_PASSWORD_FILE=%d/icloud_password
 ExecStart=/opt/caldav-automata/.venv/bin/caldav-automata
 Restart=on-failure
