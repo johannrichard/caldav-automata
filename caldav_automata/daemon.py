@@ -591,7 +591,7 @@ def _fetch_ics_feed(
     are returned unchanged so the caller can skip processing.
     """
     headers: dict[str, str] = {
-        "User-Agent": "CalDAV-Automata/1.0",
+        "User-Agent": "CalDAV Automata/1.0",
         "Accept": "text/calendar, */*",
     }
     if prev_etag:
@@ -718,9 +718,9 @@ def _poll_ics_feed(
         date_str = start_date.isoformat() if start_date is not None else "unknown"
 
         if title:
-            logger.info('[%s] new ICS event: "%s" (%s)', cal_name, title, date_str)
+            logger.info('[%s] New ICS event: "%s" (%s)', cal_name, title, date_str)
         else:
-            logger.info("[%s] new ICS event (date: %s)", cal_name, date_str)
+            logger.info("[%s] New ICS event (date: %s)", cal_name, date_str)
 
         # Wrap the single VEVENT in a minimal VCALENDAR (with any VTIMEZONEs)
         # so that _apply_rules can parse it via its standard code path.
