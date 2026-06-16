@@ -71,6 +71,7 @@ from .actions import apply_action
 from .lisp import Rule, load_rules
 
 logger = logging.getLogger(__name__)
+_MAX_CALENDAR_ALIASES_IN_LOG = 2
 
 
 # ---------------------------------------------------------------------------
@@ -447,10 +448,10 @@ def _apply_rules(
         logger.exception("Could not parse iCal payload — skipping event")
         return None
 
-    if isinstance(calendar_name, str):
-        calendar_names = _normalise_calendar_names([calendar_name])
-    else:
-        calendar_names = _normalise_calendar_names(calendar_name)
+    raw_calendar_names = (
+        [calendar_name] if isinstance(calendar_name, str) else calendar_name
+    )
+    calendar_names = _normalise_calendar_names(raw_calendar_names)
 
     changed = False
     for component in cal.walk():
@@ -677,9 +678,9 @@ def _normalise_calendar_names(
 
 def _format_calendar_display_name(calendar_names: list[str]) -> str:
     """Format calendar aliases for concise log output."""
-    if len(calendar_names) <= 2:
+    if len(calendar_names) <= _MAX_CALENDAR_ALIASES_IN_LOG:
         return " | ".join(calendar_names)
-    return f"{' | '.join(calendar_names[:2])} | ..."
+    return f"{' | '.join(calendar_names[:_MAX_CALENDAR_ALIASES_IN_LOG])} | ..."
 
 
 def _poll_ics_feed(
