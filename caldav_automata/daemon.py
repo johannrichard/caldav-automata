@@ -924,6 +924,9 @@ def _poll_account(
         logger.exception("Could not connect to account %r (%s)", label, url)
         return
 
+    cal_names = ", ".join(f'"{c.name}"' for c in all_calendars)
+    logger.info("[%s] Available calendars: %s", label, cal_names or "(none)")
+
     # Build a calendar-lookup callable for the copy-to-calendar action.
     # It covers all calendars on the account, not just the watched ones, so
     # that events can be copied to any calendar regardless of watch patterns.
