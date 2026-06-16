@@ -71,6 +71,7 @@ from .actions import apply_action
 from .lisp import Rule, load_rules
 
 logger = logging.getLogger(__name__)
+_CALENDAR_ALIAS_DISPLAY_LIMIT = 2
 
 
 # ---------------------------------------------------------------------------
@@ -419,7 +420,7 @@ def _get_event_info(raw_ical: str) -> tuple[str, str]:
 
 def _apply_rules(
     raw_ical: str,
-    calendar_name: str,
+    calendar_name: str | list[str],
     is_new: bool,
     rules: list[Rule],
     owner_email: str | None = None,
@@ -433,6 +434,11 @@ def _apply_rules(
 
     Parameters
     ----------
+    calendar_name:
+        ``str | list[str]``. A single calendar name or multiple aliases used
+        for rule matching. A rule matches when any provided calendar name
+        (checked left-to-right) matches its
+        ``(calendar "...")`` filter.
     calendar_getter:
         Optional callable ``(name: str) -> caldav.Calendar | None`` forwarded
         to ``apply_action`` for use by the ``copy-to-calendar`` action.
@@ -443,6 +449,11 @@ def _apply_rules(
         logger.exception("Could not parse iCal payload — skipping event")
         return None
 
+    calendar_name_list = (
+        [calendar_name] if isinstance(calendar_name, str) else calendar_name
+    )
+    calendar_names = _normalise_calendar_names(calendar_name_list)
+
     changed = False
     for component in cal.walk():
         if component.name != "VEVENT":
@@ -452,7 +463,10 @@ def _apply_rules(
         organizer = str(component.get("ORGANIZER", ""))
         start_date = _event_start_date(component)
         for rule in rules:
-            if not _matches(rule, calendar_name, subject, note, organizer, start_date):
+            if not any(
+                _matches(rule, name, subject, note, organizer, start_date)
+                for name in calendar_names
+            ):
                 continue
             actions = rule.on_create if is_new else rule.on_update
             for action in actions:
@@ -621,25 +635,53 @@ def _fetch_ics_feed(
         raise
 
 
-def _extract_cal_name(ics_text: str, configured_name: str | None, url: str) -> str:
-    """Return the display name for an ICS feed.
+def _extract_ics_calendar_names(
+    ics_text: str, configured_name: str | None, url: str
+) -> list[str]:
+    """Return candidate calendar names for an ICS feed.
 
-    Precedence: ``X-WR-CALNAME`` property in the ICS file > *configured_name*
-    from the config entry > the raw *url* as a last resort.
+    Names are de-duplicated while preserving order:
+    ``X-WR-CALNAME`` from the feed, then configured ``name``, then *url* when
+    no human-readable name is available.
     """
+    candidate_names: list[str | None] = []
+
     try:
         cal = Calendar.from_ical(ics_text)
         for component in cal.walk():
             if component.name == "VCALENDAR":
-                calname = str(component.get("X-WR-CALNAME", "")).strip()
-                if calname:
-                    return calname
+                candidate_names.append(component.get("X-WR-CALNAME"))
                 break
     except Exception:
         pass
-    if configured_name:
-        return configured_name
-    return url
+
+    candidate_names.append(configured_name)
+    return _normalise_calendar_names(candidate_names, fallback=url)
+
+
+def _normalise_calendar_names(
+    names: list[str | None], fallback: str | None = None
+) -> list[str]:
+    """Normalise and de-duplicate calendar name aliases."""
+    normalised: list[str] = []
+    for name in names:
+        if name is None:
+            continue
+        text = str(name).strip()
+        if text and text not in normalised:
+            normalised.append(text)
+    if not normalised and fallback:
+        fallback_text = str(fallback).strip()
+        if fallback_text:
+            normalised.append(fallback_text)
+    return normalised
+
+
+def _format_calendar_display_name(calendar_names: list[str]) -> str:
+    """Format calendar aliases for concise log output."""
+    if len(calendar_names) <= _CALENDAR_ALIAS_DISPLAY_LIMIT:
+        return " | ".join(calendar_names)
+    return f"{' | '.join(calendar_names[:_CALENDAR_ALIAS_DISPLAY_LIMIT])} | ..."
 
 
 def _poll_ics_feed(
@@ -679,8 +721,9 @@ def _poll_ics_feed(
         logger.debug("ICS feed %r unchanged (304 Not Modified)", feed_url)
         return 0
 
-    cal_name = _extract_cal_name(ics_text, configured_name, feed_url)
-    logger.info("[%s] Fetched ICS feed", cal_name)
+    calendar_names = _extract_ics_calendar_names(ics_text, configured_name, feed_url)
+    calendar_display_name = _format_calendar_display_name(calendar_names)
+    logger.info("[%s] Fetched ICS feed", calendar_display_name)
 
     # Persist the updated HTTP caching headers immediately so that even if
     # processing fails partway through we do not re-fetch on the next poll.
@@ -718,9 +761,16 @@ def _poll_ics_feed(
         date_str = start_date.isoformat() if start_date is not None else "unknown"
 
         if title:
-            logger.info('[%s] New ICS event: "%s" (%s)', cal_name, title, date_str)
+            logger.info(
+                '[%s] New ICS event: "%s" (%s)',
+                calendar_display_name,
+                title,
+                date_str,
+            )
         else:
-            logger.info("[%s] New ICS event (date: %s)", cal_name, date_str)
+            logger.info(
+                "[%s] New ICS event (date: %s)", calendar_display_name, date_str
+            )
 
         # Wrap the single VEVENT in a minimal VCALENDAR (with any VTIMEZONEs)
         # so that _apply_rules can parse it via its standard code path.
@@ -734,7 +784,9 @@ def _poll_ics_feed(
             raw_ical = per_event_cal.to_ical().decode("utf-8")
         except Exception:
             logger.exception(
-                "[%s] Could not serialise VEVENT %s — skipping", cal_name, uid
+                "[%s] Could not serialise VEVENT %s — skipping",
+                calendar_display_name,
+                uid,
             )
             continue
 
@@ -742,7 +794,7 @@ def _poll_ics_feed(
         # copy-to-calendar and similar side-effecting actions still execute.
         _apply_rules(
             raw_ical,
-            cal_name,
+            calendar_names,
             is_new=True,
             rules=rules,
             calendar_getter=calendar_getter,
