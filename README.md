@@ -259,25 +259,26 @@ python3 -m venv /opt/caldav-automata/.venv
   "git+https://github.com/johannrichard/caldav-automata.git"
 ```
 
-This installs the `caldav-automata` CLI entrypoint from `pyproject.toml`. Example configuration
-and rule files are installed into the venv's site-packages. Find them with:
+This installs the `caldav-automata` CLI entrypoint from `pyproject.toml`. Example configuration,
+rule, and systemd template files are installed under the Python data directory
+(`share/caldav-automata`). Find them with:
 
 ```sh
-SITE_PACKAGES=$(/opt/caldav-automata/.venv/bin/python -c "import site; print(site.getsitepackages()[0])")
-ls $SITE_PACKAGES/config/
-ls $SITE_PACKAGES/rules/
-ls $SITE_PACKAGES/deploy/
+DATA_DIR=$(/opt/caldav-automata/.venv/bin/python -c "import sysconfig; print(sysconfig.get_path('data'))")
+ls "$DATA_DIR/share/caldav-automata/config/"
+ls "$DATA_DIR/share/caldav-automata/rules/"
+ls "$DATA_DIR/share/caldav-automata/deploy/systemd/"
 ```
 
 Copy the examples to your system location:
 
 ```sh
-SITE_PACKAGES=$(/opt/caldav-automata/.venv/bin/python -c "import site; print(site.getsitepackages()[0])")
-sudo cp $SITE_PACKAGES/config/calendar.example.yaml /etc/caldav-automata/calendar.yaml
-sudo cp $SITE_PACKAGES/deploy/systemd/caldav-automata.env.example /etc/default/caldav-automata
-sudo cp $SITE_PACKAGES/deploy/systemd/caldav-automata.service /etc/systemd/system/
+DATA_DIR=$(/opt/caldav-automata/.venv/bin/python -c "import sysconfig; print(sysconfig.get_path('data'))")
+sudo cp "$DATA_DIR/share/caldav-automata/config/calendar.example.yaml" /etc/caldav-automata/calendar.yaml
+sudo cp "$DATA_DIR/share/caldav-automata/deploy/systemd/caldav-automata.env.example" /etc/default/caldav-automata
+sudo cp "$DATA_DIR/share/caldav-automata/deploy/systemd/caldav-automata.service" /etc/systemd/system/
 # Copy rule examples to your rules directory
-sudo cp $SITE_PACKAGES/rules/*.lisp /etc/caldav-automata/rules/
+sudo cp "$DATA_DIR/share/caldav-automata/rules"/*.lisp /etc/caldav-automata/rules/
 ```
 
 Alternative (single-user install):
@@ -286,12 +287,12 @@ Alternative (single-user install):
 pipx install "git+https://github.com/johannrichard/caldav-automata.git"
 ```
 
-With `pipx`, find the site-packages location:
+With `pipx`, find the Python data directory:
 
 ```sh
-SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-ls $SITE_PACKAGES/config/
-ls $SITE_PACKAGES/rules/
+DATA_DIR=$(python -c "import sysconfig; print(sysconfig.get_path('data'))")
+ls "$DATA_DIR/share/caldav-automata/config/"
+ls "$DATA_DIR/share/caldav-automata/rules/"
 ```
 
 ### Run with systemd
@@ -349,12 +350,12 @@ Templates are provided in `deploy/systemd/`:
 Typical setup after pip install:
 
 ```sh
-SITE_PACKAGES=$(/opt/caldav-automata/.venv/bin/python -c "import site; print(site.getsitepackages()[0])")
+DATA_DIR=$(/opt/caldav-automata/.venv/bin/python -c "import sysconfig; print(sysconfig.get_path('data'))")
 sudo useradd --system --home /nonexistent --shell /usr/sbin/nologin caldav
 sudo mkdir -p /etc/caldav-automata /var/caldav-automata /etc/default
-sudo cp $SITE_PACKAGES/config/calendar.example.yaml /etc/caldav-automata/calendar.yaml
-sudo cp $SITE_PACKAGES/deploy/systemd/caldav-automata.env.example /etc/default/caldav-automata
-sudo cp $SITE_PACKAGES/deploy/systemd/caldav-automata.service /etc/systemd/system/
+sudo cp "$DATA_DIR/share/caldav-automata/config/calendar.example.yaml" /etc/caldav-automata/calendar.yaml
+sudo cp "$DATA_DIR/share/caldav-automata/deploy/systemd/caldav-automata.env.example" /etc/default/caldav-automata
+sudo cp "$DATA_DIR/share/caldav-automata/deploy/systemd/caldav-automata.service" /etc/systemd/system/
 sudo chown caldav:caldav /var/caldav-automata
 # Now set up the encrypted credential (see steps above)
 sudo systemctl daemon-reload

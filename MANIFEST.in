@@ -1,4 +1,4 @@
 include README.md LICENSE
 recursive-include config *.yaml
-recursive-include rules *.lisp
+recursive-include rules *.lisp *.example.lisp
 recursive-include deploy *
