@@ -577,12 +577,15 @@ CalDAV calendar on any of your configured accounts.
 
 ### Calendar name
 
-The name used to match `(calendar "…")` clauses in your rules is resolved in
-this order:
+For ICS feeds, CalDAV Automata can use multiple calendar-name aliases for
+matching `(calendar "…")` clauses:
 
-1. The `X-WR-CALNAME` property inside the ICS file (most public feeds include this).
-2. The `name:` field in your config entry (useful when the feed omits `X-WR-CALNAME`).
-3. The raw URL, as a last resort.
+1. `X-WR-CALNAME` from the ICS file.
+2. `name:` from your config entry.
+3. The raw URL (last resort when no name is available).
+
+When both `X-WR-CALNAME` and config `name` are present, both names are matched
+by rules, and INFO logs show both labels.
 
 ### Configuration
 
@@ -591,10 +594,10 @@ Add an `ics_feeds` list alongside `accounts` in your `calendar.yaml`:
 ```yaml
 ics_feeds:
   - url: "https://calendar.google.com/calendar/ical/hello%40summerofprotocols.com/public/basic.ics"
-    name: "Summer of Protocols"   # optional fallback; X-WR-CALNAME takes precedence
+    name: "Summer of Protocols"   # optional additional alias for matching/logging
 
   - url: "https://example.com/team-holidays.ics"
-    # name is optional — the daemon reads it from X-WR-CALNAME when present
+    # name is optional — X-WR-CALNAME is used when present
 ```
 
 ### Rule example
@@ -731,7 +734,7 @@ new or updated event as it is processed.
 | Key | Description |
 | --- | --- |
 | `url` | Full HTTPS URL of the `.ics` file |
-| `name` | *(optional)* Fallback display name; `X-WR-CALNAME` from the ICS takes precedence |
+| `name` | *(optional)* Additional display alias used for matching and logs (alongside `X-WR-CALNAME` when present) |
 
 ---
 

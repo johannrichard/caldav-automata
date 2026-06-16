@@ -419,7 +419,7 @@ def _get_event_info(raw_ical: str) -> tuple[str, str]:
 
 def _apply_rules(
     raw_ical: str,
-    calendar_name: str,
+    calendar_name: str | list[str],
     is_new: bool,
     rules: list[Rule],
     owner_email: str | None = None,
@@ -433,6 +433,10 @@ def _apply_rules(
 
     Parameters
     ----------
+    calendar_name:
+        A single calendar name or multiple aliases used for rule matching.
+        A rule matches when any provided calendar name matches its
+        ``(calendar "...")`` filter.
     calendar_getter:
         Optional callable ``(name: str) -> caldav.Calendar | None`` forwarded
         to ``apply_action`` for use by the ``copy-to-calendar`` action.
@@ -443,6 +447,11 @@ def _apply_rules(
         logger.exception("Could not parse iCal payload — skipping event")
         return None
 
+    if isinstance(calendar_name, str):
+        calendar_names = [calendar_name]
+    else:
+        calendar_names = list(dict.fromkeys(name for name in calendar_name if name))
+
     changed = False
     for component in cal.walk():
         if component.name != "VEVENT":
@@ -452,7 +461,10 @@ def _apply_rules(
         organizer = str(component.get("ORGANIZER", ""))
         start_date = _event_start_date(component)
         for rule in rules:
-            if not _matches(rule, calendar_name, subject, note, organizer, start_date):
+            if not any(
+                _matches(rule, name, subject, note, organizer, start_date)
+                for name in calendar_names
+            ):
                 continue
             actions = rule.on_create if is_new else rule.on_update
             for action in actions:
@@ -621,25 +633,35 @@ def _fetch_ics_feed(
         raise
 
 
-def _extract_cal_name(ics_text: str, configured_name: str | None, url: str) -> str:
-    """Return the display name for an ICS feed.
+def _extract_ics_calendar_names(
+    ics_text: str, configured_name: str | None, url: str
+) -> list[str]:
+    """Return candidate calendar names for an ICS feed.
 
-    Precedence: ``X-WR-CALNAME`` property in the ICS file > *configured_name*
-    from the config entry > the raw *url* as a last resort.
+    Names are de-duplicated while preserving order:
+    ``X-WR-CALNAME`` from the feed, then configured ``name``, then *url* when
+    no human-readable name is available.
     """
+    names: list[str] = []
+
+    def _add(name: str | None) -> None:
+        text = str(name or "").strip()
+        if text and text not in names:
+            names.append(text)
+
     try:
         cal = Calendar.from_ical(ics_text)
         for component in cal.walk():
             if component.name == "VCALENDAR":
-                calname = str(component.get("X-WR-CALNAME", "")).strip()
-                if calname:
-                    return calname
+                _add(component.get("X-WR-CALNAME"))
                 break
     except Exception:
         pass
-    if configured_name:
-        return configured_name
-    return url
+
+    _add(configured_name)
+    if not names:
+        _add(url)
+    return names
 
 
 def _poll_ics_feed(
@@ -679,7 +701,8 @@ def _poll_ics_feed(
         logger.debug("ICS feed %r unchanged (304 Not Modified)", feed_url)
         return 0
 
-    cal_name = _extract_cal_name(ics_text, configured_name, feed_url)
+    calendar_names = _extract_ics_calendar_names(ics_text, configured_name, feed_url)
+    cal_name = " | ".join(calendar_names)
     logger.info("[%s] Fetched ICS feed", cal_name)
 
     # Persist the updated HTTP caching headers immediately so that even if
@@ -742,7 +765,7 @@ def _poll_ics_feed(
         # copy-to-calendar and similar side-effecting actions still execute.
         _apply_rules(
             raw_ical,
-            cal_name,
+            calendar_names,
             is_new=True,
             rules=rules,
             calendar_getter=calendar_getter,
