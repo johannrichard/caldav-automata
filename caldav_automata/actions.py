@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from icalendar import Alarm, vCalAddress
+from icalendar import Alarm, Calendar as iCalendar, vCalAddress
 
 logger = logging.getLogger(__name__)
 
@@ -240,19 +240,104 @@ def delete_inbox_item(_event, inbox_item=None) -> bool:
     return True
 
 
+def copy_to_calendar(event, target_name: str, get_calendar=None) -> bool:
+    """
+    Copy *event* as a new event into the named target calendar.
+
+    The copy is idempotent: if an event with the same UID already exists in
+    *target_name* the action logs a debug message and skips the write.
+    The source event is **not** modified; this action returns ``False`` so
+    the rule engine does not write the source event back to the server.
+
+    Parameters
+    ----------
+    event:
+        The VEVENT component to copy.
+    target_name:
+        Display name of the target calendar on the same account.
+    get_calendar:
+        Callable that receives a calendar display name and returns a caldav
+        Calendar object, or ``None`` when no match is found.  Supplied by
+        the daemon at rule-dispatch time.
+    """
+    if get_calendar is None:
+        logger.warning("copy-to-calendar: no calendar lookup available")
+        return False
+    target = get_calendar(target_name)
+    if target is None:
+        logger.warning("copy-to-calendar: target calendar %r not found", target_name)
+        return False
+
+    uid = str(event.get("UID", "")).strip()
+
+    # Idempotency check: skip if an event with this UID already exists.
+    if uid:
+        try:
+            existing = target.event_by_uid(uid)
+            if existing is not None:
+                logger.debug(
+                    "copy-to-calendar: event %s already in %r — skipping",
+                    uid,
+                    target_name,
+                )
+                return False
+        except Exception:
+            # Many servers raise NotFoundError when the UID does not exist;
+            # treat any exception as "not found" and proceed with the copy.
+            pass
+
+    # Wrap the component in a minimal VCALENDAR so caldav accepts it.
+    wrapper = iCalendar()
+    wrapper.add("prodid", "-//CalDAV Automata//EN")
+    wrapper.add("version", "2.0")
+    wrapper.add_component(event)
+    try:
+        ical_str = wrapper.to_ical().decode("utf-8")
+    except Exception:
+        logger.exception("copy-to-calendar: could not serialise event for copy")
+        return False
+
+    try:
+        target.add_event(ical_str)
+    except Exception:
+        logger.exception("copy-to-calendar: failed to add event to %r", target_name)
+        return False
+
+    logger.info(
+        "copy-to-calendar: copied event %s to %r",
+        uid or "(no UID)",
+        target_name,
+    )
+    # Return False: this action does not modify the source event in-place,
+    # so the rule engine must not write the source event back to the server
+    # unless another action in the same rule also modifies it.
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
 
 def apply_action(
-    event, action: list, inbox_item=None, owner_email: str | None = None
+    event,
+    action: list,
+    inbox_item=None,
+    owner_email: str | None = None,
+    get_calendar=None,
 ) -> bool:
     """
     Dispatch a parsed Lisp action form to the matching handler.
 
     Unknown action names are logged and ignored so that a single bad
     rule does not prevent other rules from running.
+
+    Parameters
+    ----------
+    get_calendar:
+        Optional callable ``(name: str) -> caldav.Calendar | None`` used by
+        the ``copy-to-calendar`` action to resolve a target calendar by its
+        display name.  Supplied by the daemon; ``None`` in inbox contexts.
     """
     if not isinstance(action, list) or not action:
         return False
@@ -327,6 +412,16 @@ def apply_action(
 
     elif name == "delete-inbox-item":
         return delete_inbox_item(event, inbox_item=inbox_item)
+
+    elif name == "copy-to-calendar":
+        if event is None:
+            logger.warning("copy-to-calendar: action requires VEVENT context")
+            return False
+        if not args:
+            logger.warning("copy-to-calendar: target calendar name required")
+            return False
+        target_name = str(args[0])
+        return copy_to_calendar(event, target_name, get_calendar=get_calendar)
 
     else:
         logger.warning("Unknown action %r — ignoring", name)
