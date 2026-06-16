@@ -71,7 +71,7 @@ from .actions import apply_action
 from .lisp import Rule, load_rules
 
 logger = logging.getLogger(__name__)
-_MAX_CALENDAR_ALIASES_IN_LOG = 2
+_CALENDAR_ALIAS_DISPLAY_LIMIT = 2
 
 
 # ---------------------------------------------------------------------------
@@ -643,19 +643,19 @@ def _extract_ics_calendar_names(
     ``X-WR-CALNAME`` from the feed, then configured ``name``, then *url* when
     no human-readable name is available.
     """
-    names: list[str | None] = []
+    candidate_names: list[str | None] = []
 
     try:
         cal = Calendar.from_ical(ics_text)
         for component in cal.walk():
             if component.name == "VCALENDAR":
-                names.append(component.get("X-WR-CALNAME"))
+                candidate_names.append(component.get("X-WR-CALNAME"))
                 break
     except Exception:
         pass
 
-    names.append(configured_name)
-    return _normalise_calendar_names(names, fallback=url)
+    candidate_names.append(configured_name)
+    return _normalise_calendar_names(candidate_names, fallback=url)
 
 
 def _normalise_calendar_names(
@@ -678,9 +678,9 @@ def _normalise_calendar_names(
 
 def _format_calendar_display_name(calendar_names: list[str]) -> str:
     """Format calendar aliases for concise log output."""
-    if len(calendar_names) <= _MAX_CALENDAR_ALIASES_IN_LOG:
+    if len(calendar_names) <= _CALENDAR_ALIAS_DISPLAY_LIMIT:
         return " | ".join(calendar_names)
-    return f"{' | '.join(calendar_names[:_MAX_CALENDAR_ALIASES_IN_LOG])} | ..."
+    return f"{' | '.join(calendar_names[:_CALENDAR_ALIAS_DISPLAY_LIMIT])} | ..."
 
 
 def _poll_ics_feed(
