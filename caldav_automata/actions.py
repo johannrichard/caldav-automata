@@ -285,6 +285,15 @@ def copy_to_calendar(event, target_name: str, get_calendar=None) -> bool:
             # Many servers raise NotFoundError when the UID does not exist;
             # treat any exception as "not found" and proceed with the copy.
             pass
+    else:
+        # Events without a UID cannot be deduplicated.  Warn so the user can
+        # investigate; the copy proceeds but may create duplicates on each
+        # poll cycle if the source event continues to appear as new/changed.
+        logger.warning(
+            "copy-to-calendar: event has no UID — idempotency check skipped; "
+            "duplicate copies may be created in %r",
+            target_name,
+        )
 
     # Wrap the component in a minimal VCALENDAR so caldav accepts it.
     wrapper = iCalendar()
