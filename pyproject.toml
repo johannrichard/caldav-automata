@@ -15,13 +15,6 @@ dependencies = ["caldav>=1.3.9", "icalendar>=5.0.0", "PyYAML>=6.0"]
 caldav-automata = "caldav_automata.main:main"
 
 
-<<<<<<< Updated upstream
-
-
-
-
-=======
->>>>>>> Stashed changes
 [tool.setuptools.packages.find]
 include = ["caldav_automata*"]
 
