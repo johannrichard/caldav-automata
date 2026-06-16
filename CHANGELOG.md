@@ -1,6 +1,39 @@
 # CHANGELOG
 
 
+## v0.12.1 (2026-06-16)
+
+### Bug Fixes
+
+- :bug: support ICS alias names in logs and rules
+  ([`34c471f`](https://github.com/johannrichard/caldav-automata/commit/34c471f9045da85fb23745453a7d04fd10735435))
+
+### Documentation
+
+- :memo: clarify ICS alias matching behavior
+  ([`89f64a0`](https://github.com/johannrichard/caldav-automata/commit/89f64a030d43e78cbacccfaec0f5434cc558b90a))
+
+- :memo: generalize provider password examples
+  ([`bbb67e2`](https://github.com/johannrichard/caldav-automata/commit/bbb67e23171c03c491543fede092fa2c31234424))
+
+- :memo: keep organizer format unchanged
+  ([`fe9241a`](https://github.com/johannrichard/caldav-automata/commit/fe9241a3b21d18afb5968d8ef4db752ae751d06a))
+
+### Refactoring
+
+- :art: tidy ICS alias handling
+  ([`b7361cb`](https://github.com/johannrichard/caldav-automata/commit/b7361cb4546ea0d5c379ab1013e7976894d57d10))
+
+- :label: improve ICS alias naming clarity
+  ([`b87ca63`](https://github.com/johannrichard/caldav-automata/commit/b87ca63821f86a76de98d8cea094c1cdf2b27bc4))
+
+- :lipstick: polish ICS alias log formatting
+  ([`e1785ba`](https://github.com/johannrichard/caldav-automata/commit/e1785ba078fbfeea8646b53ce0d3548e21e3366e))
+
+- :recycle: clarify ICS alias normalization
+  ([`89fac61`](https://github.com/johannrichard/caldav-automata/commit/89fac6192420bb445af029d386f5d46cc0d4eb41))
+
+
 ## v0.12.0 (2026-06-16)
 
 ### Bug Fixes
