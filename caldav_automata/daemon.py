@@ -448,15 +448,9 @@ def _apply_rules(
         return None
 
     if isinstance(calendar_name, str):
-        calendar_names = [calendar_name]
+        calendar_names = _normalise_calendar_names([calendar_name])
     else:
-        calendar_names = []
-        for name in calendar_name:
-            if name is None:
-                continue
-            text = str(name).strip()
-            if text and text not in calendar_names:
-                calendar_names.append(text)
+        calendar_names = _normalise_calendar_names(calendar_name)
 
     changed = False
     for component in cal.walk():
@@ -648,26 +642,44 @@ def _extract_ics_calendar_names(
     ``X-WR-CALNAME`` from the feed, then configured ``name``, then *url* when
     no human-readable name is available.
     """
-    names: list[str] = []
-
-    def _add(name: str | None) -> None:
-        text = str(name or "").strip()
-        if text and text not in names:
-            names.append(text)
+    names: list[str | None] = []
 
     try:
         cal = Calendar.from_ical(ics_text)
         for component in cal.walk():
             if component.name == "VCALENDAR":
-                _add(component.get("X-WR-CALNAME"))
+                names.append(component.get("X-WR-CALNAME"))
                 break
     except Exception:
         pass
 
-    _add(configured_name)
-    if not names:
-        _add(url)
-    return names
+    names.append(configured_name)
+    return _normalise_calendar_names(names, fallback=url)
+
+
+def _normalise_calendar_names(
+    names: list[str | None], fallback: str | None = None
+) -> list[str]:
+    """Normalise and de-duplicate calendar name aliases."""
+    normalised: list[str] = []
+    for name in names:
+        if name is None:
+            continue
+        text = str(name).strip()
+        if text and text not in normalised:
+            normalised.append(text)
+    if not normalised and fallback:
+        fallback_text = str(fallback).strip()
+        if fallback_text:
+            normalised.append(fallback_text)
+    return normalised
+
+
+def _format_calendar_display_name(calendar_names: list[str]) -> str:
+    """Format calendar aliases for concise log output."""
+    if len(calendar_names) <= 2:
+        return " | ".join(calendar_names)
+    return f"{' | '.join(calendar_names[:2])} | ..."
 
 
 def _poll_ics_feed(
@@ -708,7 +720,7 @@ def _poll_ics_feed(
         return 0
 
     calendar_names = _extract_ics_calendar_names(ics_text, configured_name, feed_url)
-    calendar_display_name = " | ".join(calendar_names)
+    calendar_display_name = _format_calendar_display_name(calendar_names)
     logger.info("[%s] Fetched ICS feed", calendar_display_name)
 
     # Persist the updated HTTP caching headers immediately so that even if
