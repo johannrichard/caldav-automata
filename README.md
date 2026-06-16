@@ -548,6 +548,74 @@ Typical use cases:
 > The target calendar must already exist on the server — the action does not
 > create it.
 
+---
+
+## ICS feeds
+
+Some calendars are published as plain `.ics` files over HTTP or HTTPS — think
+Google Calendar public links, community event feeds, or conference schedules.
+CalDAV Automata can poll those feeds and apply your existing LISP rules to
+every event they contain, no credentials required.
+
+### How it works
+
+On each poll cycle the daemon fetches every configured ICS feed URL using
+conditional HTTP (`If-None-Match` / `If-Modified-Since`) so that unchanged
+feeds cost only a lightweight 304 response. For each VEVENT it has not seen
+before it applies matching rules in exactly the same way as CalDAV events.
+
+Because ICS feeds are read-only, any iCal modifications produced by
+`add-attendee`, `set-alert`, and similar actions are silently discarded — they
+cannot be written back to the source. What *does* work across feeds is
+`copy-to-calendar`: the daemon copies new matching events into any writable
+CalDAV calendar on any of your configured accounts.
+
+### Calendar name
+
+The name used to match `(calendar "…")` clauses in your rules is resolved in
+this order:
+
+1. The `X-WR-CALNAME` property inside the ICS file (most public feeds include this).
+2. The `name:` field in your config entry (useful when the feed omits `X-WR-CALNAME`).
+3. The raw URL, as a last resort.
+
+### Configuration
+
+Add an `ics_feeds` list alongside `accounts` in your `calendar.yaml`:
+
+```yaml
+ics_feeds:
+  - url: "https://calendar.google.com/calendar/ical/hello%40summerofprotocols.com/public/basic.ics"
+    name: "Summer of Protocols"   # optional fallback; X-WR-CALNAME takes precedence
+
+  - url: "https://example.com/team-holidays.ics"
+    # name is optional — the daemon reads it from X-WR-CALNAME when present
+```
+
+### Rule example
+
+```lisp
+; Copy every new event from an ICS feed into a personal calendar.
+(rule
+  (when
+    (calendar "Summer of Protocols"))
+  (on-create
+    (copy-to-calendar "Personal")))
+
+; Copy only events that contain "workshop" in their title.
+(rule
+  (when
+    (calendar "Summer of Protocols")
+    (subject "*workshop*"))
+  (on-create
+    (copy-to-calendar "Work")))
+```
+
+The `copy-to-calendar` target can be any calendar on any of your configured
+CalDAV accounts, not just those on a specific account.
+
+---
+
 ### Examples
 
 ```lisp
@@ -635,6 +703,7 @@ new or updated event as it is processed.
 | `state_folder` | `/data` | Folder containing SQLite state DB (`state.db`) |
 | `state_db_file` | derived from `state_folder` | Optional DB path override |
 | `accounts` | *(required)* | List of CalDAV account objects |
+| `ics_feeds` | *(optional)* | List of read-only ICS feed objects |
 
 ### Account object
 
@@ -651,6 +720,13 @@ new or updated event as it is processed.
 | `headers` | *(optional)* Extra HTTP headers sent with every request |
 
 `calendars` entries must be plain strings.
+
+### ICS feed object
+
+| Key | Description |
+| --- | --- |
+| `url` | Full HTTPS URL of the `.ics` file |
+| `name` | *(optional)* Fallback display name; `X-WR-CALNAME` from the ICS takes precedence |
 
 ---
 
