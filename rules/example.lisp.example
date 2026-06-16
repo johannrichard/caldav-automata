@@ -56,6 +56,14 @@
 ;                        NONE   = do not send scheduling messages for this attendee.
 ;       Parameter names are case-insensitive; values are normalized to upper-case.
 ;
+;   (copy-to-calendar "Target Calendar Name")
+;       Copy the matching event into another calendar on the same account.
+;       The copy is idempotent: if an event with the same UID already exists
+;       in the target calendar it is skipped silently.  The source event is
+;       not modified.  The target calendar must already exist on the server.
+;       Useful for mirroring events from a read-only subscribed calendar into
+;       a personal, editable calendar.
+;
 ;   (on-invite-request <action> ...)
 ;       Actions for inbox invite requests (METHOD:REQUEST).
 ;
@@ -149,3 +157,23 @@
 ;   (on-create
 ;     (add-attendee "hr@example.com" "HR Team")
 ;     (set-alert 1440 "EMAIL" "Onboarding event tomorrow")))
+
+
+; Copy every new event from a subscribed (read-only) calendar into a personal calendar.
+; The target calendar must already exist.  The copy is idempotent by UID.
+; (rule
+;   (when
+;     (calendar "Subscribed Calendar"))
+;   (on-create
+;     (copy-to-calendar "Personal")))
+
+
+; Copy only matching events from one calendar into a shared team calendar.
+; (rule
+;   (when
+;     (calendar "Work")
+;     (subject "*offsite*"))
+;   (on-create
+;     (copy-to-calendar "Team"))
+;   (on-update
+;     (copy-to-calendar "Team")))
