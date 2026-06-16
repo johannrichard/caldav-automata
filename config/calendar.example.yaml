@@ -24,7 +24,7 @@ accounts:
     password_file: "${CALDAV_PASSWORD_FILE}"
     # Optional fallback-only organizer. Used only if principal
     # calendar-user-address-set discovery fails.
-    organizer: "mailto:you@example.com"
+    organizer: "you@example.com"
     # Or fall back to an environment variable:
     # password: "${CALDAV_PASSWORD}"
     # List specific calendar display-names to watch, or use ["*"] for all.

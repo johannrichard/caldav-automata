@@ -92,7 +92,7 @@ accounts:
     url: "https://caldav.example.com/"
     username: "you@example.com"
     password_file: "/run/secrets/caldav_password"
-    organizer: "mailto:you@example.com"
+    organizer: "you@example.com"
     calendars:
       - "Family"
       - "Work"
