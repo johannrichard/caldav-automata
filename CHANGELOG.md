@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.12.2 (2026-06-16)
+
+### Build System
+
+- :package: include example assets via setuptools data-files
+  ([`14cd393`](https://github.com/johannrichard/caldav-automata/commit/14cd3931c27d3d0b0d2caf320924da218dd4ecd8))
+
+- 🩹 fix pyproject
+  ([`f51cc7f`](https://github.com/johannrichard/caldav-automata/commit/f51cc7f80c6f88c5c86ec3d43ae018738cbcc466))
+
+
 ## v0.12.1 (2026-06-16)
 
 ### Bug Fixes
