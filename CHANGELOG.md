@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.12.0 (2026-06-16)
+
+### Bug Fixes
+
+- :bug: fix User-Agent casing and log message capitalization
+  ([`a77e424`](https://github.com/johannrichard/caldav-automata/commit/a77e42452ce10aec27becd9d5c78967c408360a9))
+
+### Features
+
+- :sparkles: add ICS feed support for read-only calendar polling
+  ([`e0a014d`](https://github.com/johannrichard/caldav-automata/commit/e0a014d5c4a6486db80e0cab3778a8033bd30637))
+
+
 ## v0.11.0 (2026-06-16)
 
 ### Bug Fixes
