@@ -7,7 +7,7 @@ services:
     # No ports — the daemon connects outward to CalDAV servers; nothing listens here.
     # Preferred: mount secrets as files and reference them with password_file in /config/calendar.yaml.
     secrets:
-      - icloud_password
+      - caldav_password
     # Optional fallback for env-var based secrets:
     # env_file: .env
     volumes:
@@ -23,5 +23,5 @@ volumes:
   caldav-state:
 
 secrets:
-  icloud_password:
-    file: ./secrets/icloud_password.txt
+  caldav_password:
+    file: ./secrets/caldav_password.txt

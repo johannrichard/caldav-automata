@@ -1,11 +1,11 @@
 # CalDAV Automata
 
-A lightweight Docker daemon that watches your CalDAV calendars — including
-Apple iCloud — and automatically applies small LISP-defined rules whenever
+A lightweight Docker daemon that watches your CalDAV calendars and
+automatically applies small LISP-defined rules whenever
 events are created or updated by *any* client or user.
 
 No proxy required. No server port exposed. Just connect your calendar apps
-directly to iCloud (or any CalDAV server) as usual, and let CalDAV Automata
+directly to your CalDAV provider as usual, and let CalDAV Automata
 handle the automation in the background.
 
 ---
@@ -33,12 +33,16 @@ restart required.
 
 ## Quick start
 
-### 1 — Create an App-Specific Password (iCloud)
+### 1 — Prepare your CalDAV credentials
 
-If you are connecting to iCloud you must use an
-[App-Specific Password](https://support.apple.com/en-gb/HT204397), not your
-regular Apple ID password. Create one at
-<https://appleid.apple.com/account/manage>.
+Use the credential type required by your provider:
+
+- regular account password
+- app-specific password (required by some providers, including iCloud)
+- access token (if your provider supports it)
+
+Check your provider's CalDAV documentation and create the correct credential
+before continuing.
 
 ### 2 — Set up your secrets
 
@@ -47,8 +51,8 @@ instead of passing it through the container environment:
 
 ```sh
 mkdir -p secrets
-printf '%s' 'your-app-specific-password-here' > secrets/icloud_password.txt
-chmod 600 secrets/icloud_password.txt
+printf '%s' 'your-caldav-password-here' > secrets/caldav_password.txt
+chmod 600 secrets/caldav_password.txt
 ```
 
 > `./secrets/` is listed in `.gitignore` and will never be committed.
@@ -61,7 +65,7 @@ chmod 600 .env
 ```
 
 ```sh
-ICLOUD_PASSWORD=your-app-specific-password-here
+CALDAV_PASSWORD=your-caldav-password-here
 ```
 
 > `.env` is listed in `.gitignore` and will never be committed.
@@ -74,7 +78,7 @@ Copy the template and edit your real config file:
 cp config/calendar.example.yaml config/calendar.yaml
 ```
 
-Then edit `config/calendar.yaml` with your iCloud address and the calendar
+Then edit `config/calendar.yaml` with your CalDAV account details and the calendar
 names you want to watch:
 
 ```yaml
@@ -84,11 +88,11 @@ rules_dir: /rules          # path inside the container
 state_folder: /data        # stores SQLite state DB (state.db)
 
 accounts:
-  - name: "iCloud"
-    url: "https://caldav.icloud.com/"
-    username: "you@icloud.com"
-    password_file: "/run/secrets/icloud_password"
-    organizer: "you@icloud.com"
+  - name: "Primary CalDAV"
+    url: "https://caldav.example.com/"
+    username: "you@example.com"
+    password_file: "/run/secrets/caldav_password"
+    organizer: "mailto:you@example.com"
     calendars:
       - "Family"
       - "Work"
@@ -98,21 +102,22 @@ If you prefer environment variables instead of a mounted secret file:
 
 ```yaml
 accounts:
-  - name: "iCloud"
-    url: "https://caldav.icloud.com/"
-    username: "you@icloud.com"
-    password: "${ICLOUD_PASSWORD}"   # resolved from .env at runtime
+  - name: "Primary CalDAV"
+    url: "https://caldav.example.com/"
+    username: "you@example.com"
+    password: "${CALDAV_PASSWORD}"   # resolved from .env at runtime
     calendars:
       - "Family"
       - "Work"
 ```
 
-### iCloud URL discovery
-Use the generic base URL `https://caldav.icloud.com/`
-as-is. The CalDAV library automatically discovers your user-specific
-principal and calendar-home-set via `PROPFIND`, so you never need to
-hard-code a personal path. iCloud always requires Basic authentication with
-an App-Specific Password (see step 1).
+### CalDAV URL discovery
+Use the base URL documented by your provider. The CalDAV library automatically
+discovers your user-specific principal and calendar-home-set via `PROPFIND`,
+so you usually do not need to hard-code a personal path.
+
+For providers that publish a generic discovery endpoint (for example iCloud's
+`https://caldav.icloud.com/`), use that documented base URL directly.
 
 Calendar names support `fnmatch` wildcards. Use `["*"]` to watch every
 calendar on an account.
@@ -174,8 +179,8 @@ Optional logging env vars:
   Default is `auto` (colors only when stdout is a TTY). `NO_COLOR` disables
   colors in auto mode.
 
-The shipped `docker-compose.yml` mounts `./secrets/icloud_password.txt` as the
-Docker secret `/run/secrets/icloud_password`, which matches the
+The shipped `docker-compose.yml` mounts `./secrets/caldav_password.txt` as the
+Docker secret `/run/secrets/caldav_password`, which matches the
 `password_file` example above. To build the image locally instead of pulling
 from GHCR, swap the `image:` line in `docker-compose.yml` for the commented-out
 `build: .` line.
@@ -191,15 +196,15 @@ services:
   caldav-automata:
     image: ghcr.io/johannrichard/caldav-automata:latest
     secrets:
-      - icloud_password
+      - caldav_password
     volumes:
       - caldav-state:/data
       - ./rules:/rules:ro
       - ./config:/config:ro
 
 secrets:
-  icloud_password:
-    file: ./secrets/icloud_password.txt
+  caldav_password:
+    file: ./secrets/caldav_password.txt
 ```
 
 ### 5b — Secret injection options
@@ -207,7 +212,7 @@ secrets:
 - **Best default**: mount a secret file from Docker Compose, Docker Swarm,
   Kubernetes, ECS, or another orchestrator and use `password_file`.
 - **Good with Proton Pass / `pass-cli`**: fetch the secret on the **host**
-  before `docker compose up`, write it into `./secrets/icloud_password.txt`,
+  before `docker compose up`, write it into `./secrets/caldav_password.txt`,
   then let Docker mount that file into the container.
 - **Not recommended**: run `pass-cli`, a desktop keychain helper, or similar
   secret tooling *inside* the application container. That couples the image to a
@@ -302,12 +307,12 @@ paths before enabling the service:
 - `ExecStart`
 - `Environment=CONFIG_FILE` (or `/etc/default/caldav-automata`)
 
-The service loads the iCloud password from an encrypted systemd credential,
-which is decrypted at runtime and exposed as `ICLOUD_PASSWORD_FILE`. The
+The service loads the CalDAV password from an encrypted systemd credential,
+which is decrypted at runtime and exposed as `CALDAV_PASSWORD_FILE`. The
 example `calendar.yaml` uses:
 
 ```yaml
-password_file: "${ICLOUD_PASSWORD_FILE}"
+password_file: "${CALDAV_PASSWORD_FILE}"
 ```
 
 To set up the encrypted credential:
@@ -315,26 +320,26 @@ To set up the encrypted credential:
 1. Create a temporary file with your password in `/run` (in-memory):
 
    ```sh
-   sudo tee /run/icloud_password.txt <<< 'your-app-specific-password' > /dev/null
-   chmod 600 /run/icloud_password.txt
+   sudo tee /run/caldav_password.txt <<< 'your-caldav-password' > /dev/null
+   chmod 600 /run/caldav_password.txt
    ```
 
 2. Encrypt it using `systemd-creds encrypt` (without `--pretty`):
 
    ```sh
-   sudo systemd-creds encrypt --name icloud_password \
-     </run/icloud_password.txt \
-     >/var/caldav-automata/icloud_password.cred
+   sudo systemd-creds encrypt --name caldav_password \
+     </run/caldav_password.txt \
+     >/var/caldav-automata/caldav_password.cred
    ```
 
 3. Remove the temporary password file:
 
    ```sh
-   sudo rm /run/icloud_password.txt
+   sudo rm /run/caldav_password.txt
    ```
 
 Keep the encrypted credential path in sync with the `LoadCredentialEncrypted=`
-line in the unit file (default: `/var/caldav-automata/icloud_password.cred`).
+line in the unit file (default: `/var/caldav-automata/caldav_password.cred`).
 
 Templates are provided in `deploy/systemd/`:
 
@@ -710,8 +715,8 @@ new or updated event as it is processed.
 | Key | Description |
 | --- | --- |
 | `name` | Display name used in log output |
-| `url` | CalDAV base URL (e.g. `https://caldav.icloud.com/`) |
-| `username` | Account username / Apple ID |
+| `url` | CalDAV base URL from your provider |
+| `username` | Account username/login for that provider |
 | `password` | Account password or `${ENV_VAR}` reference |
 | `organizer` | *(optional)* Fallback-only organizer when discovery fails |
 | `calendars` | Calendar names/wildcards to watch; `["*"]` watches all |
