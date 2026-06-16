@@ -394,12 +394,19 @@ def _apply_rules(
     is_new: bool,
     rules: list[Rule],
     owner_email: str | None = None,
+    calendar_getter=None,
 ) -> str | None:
     """
     Apply matching rules to *raw_ical*.
 
     Returns the modified iCal string when at least one action ran, or
     ``None`` when the event should be left unchanged.
+
+    Parameters
+    ----------
+    calendar_getter:
+        Optional callable ``(name: str) -> caldav.Calendar | None`` forwarded
+        to ``apply_action`` for use by the ``copy-to-calendar`` action.
     """
     try:
         cal = Calendar.from_ical(raw_ical)
@@ -422,7 +429,12 @@ def _apply_rules(
             for action in actions:
                 try:
                     changed = (
-                        apply_action(component, action, owner_email=owner_email)
+                        apply_action(
+                            component,
+                            action,
+                            owner_email=owner_email,
+                            get_calendar=calendar_getter,
+                        )
                         or changed
                     )
                 except Exception:
@@ -466,11 +478,18 @@ def _apply_inbox_rules(
     invite_type: str,
     inbox_item,
     rules: list[Rule],
+    calendar_getter=None,
 ) -> bool:
     """
     Apply invite-request/reply actions to a scheduling inbox item.
 
     Returns True when at least one action executed successfully.
+
+    Parameters
+    ----------
+    calendar_getter:
+        Optional callable ``(name: str) -> caldav.Calendar | None`` forwarded
+        to ``apply_action`` for use by the ``copy-to-calendar`` action.
     """
     component = _first_vevent(raw_ical)
     if component is None:
@@ -499,7 +518,13 @@ def _apply_inbox_rules(
         for action in actions:
             try:
                 changed = (
-                    apply_action(component, action, inbox_item=inbox_item) or changed
+                    apply_action(
+                        component,
+                        action,
+                        inbox_item=inbox_item,
+                        get_calendar=calendar_getter,
+                    )
+                    or changed
                 )
             except Exception:
                 logger.exception("Error applying inbox action %r", action)
@@ -524,12 +549,19 @@ def _poll_calendar(
     state: _EventState,
     rules: list[Rule],
     owner_email: str | None = None,
+    calendar_getter=None,
 ) -> int:
     """
     Fetch all events in *calendar*, apply rules to new/changed ones, and
     write modifications back.
 
     Returns the number of events that were modified and saved.
+
+    Parameters
+    ----------
+    calendar_getter:
+        Optional callable ``(name: str) -> caldav.Calendar | None`` forwarded
+        to ``_apply_rules`` for use by the ``copy-to-calendar`` action.
     """
     cal_name = calendar.name or str(calendar.url)
     cal_url = str(calendar.url)
@@ -633,6 +665,7 @@ def _poll_calendar(
             is_new,
             rules,
             owner_email=owner_email,
+            calendar_getter=calendar_getter,
         )
 
         if modified_ical is not None:
@@ -685,11 +718,18 @@ def _poll_inbox(
     state: _EventState,
     rules: list[Rule],
     label: str,
+    calendar_getter=None,
 ) -> int:
     """
     Poll the account scheduling inbox and apply invite request/reply rules.
 
     Returns the number of inbox items that triggered at least one action.
+
+    Parameters
+    ----------
+    calendar_getter:
+        Optional callable ``(name: str) -> caldav.Calendar | None`` forwarded
+        to ``_apply_inbox_rules`` for use by the ``copy-to-calendar`` action.
     """
     try:
         inbox = principal.schedule_inbox()
@@ -764,7 +804,9 @@ def _poll_inbox(
             logger.info("[%s] %s inbox item (date: %s)", label, invite_type, date_str)
         logger.debug("[%s] Processing inbox item: %s", label, uid)
 
-        acted = _apply_inbox_rules(item.data, invite_type, item, rules)
+        acted = _apply_inbox_rules(
+            item.data, invite_type, item, rules, calendar_getter=calendar_getter
+        )
         if acted:
             handled += 1
         state.set_inbox_etag(url, etag)
@@ -823,6 +865,25 @@ def _configured_organizer_fallbacks(accounts: list[dict]) -> list[str]:
     return fallbacks
 
 
+def _make_calendar_getter(all_calendars):
+    """Return a callable that looks up a caldav Calendar by display name.
+
+    The returned function performs a case-insensitive match and returns the
+    first matching calendar, or ``None`` when no match is found.  It captures
+    *all_calendars* by reference so that calendars discovered or added during a
+    poll cycle are visible to actions.
+    """
+
+    def _get(name: str):
+        lowered = name.lower()
+        for cal in all_calendars:
+            if (cal.name or "").lower() == lowered:
+                return cal
+        return None
+
+    return _get
+
+
 def _poll_account(
     account: dict,
     state: _EventState,
@@ -862,6 +923,11 @@ def _poll_account(
     except Exception:
         logger.exception("Could not connect to account %r (%s)", label, url)
         return
+
+    # Build a calendar-lookup callable for the copy-to-calendar action.
+    # It covers all calendars on the account, not just the watched ones, so
+    # that events can be copied to any calendar regardless of watch patterns.
+    calendar_getter = _make_calendar_getter(all_calendars)
 
     account_key = f"{url}|{username}"
     if account_key in owner_email_cache:
@@ -914,6 +980,7 @@ def _poll_account(
             state,
             rules,
             owner_email=owner_email,
+            calendar_getter=calendar_getter,
         )
         if count:
             logger.info(
@@ -925,7 +992,9 @@ def _poll_account(
 
     if _has_invite_rules(rules):
         if scheduling_supported:
-            inbox_count = _poll_inbox(principal, state, rules, label)
+            inbox_count = _poll_inbox(
+                principal, state, rules, label, calendar_getter=calendar_getter
+            )
             if inbox_count:
                 logger.info(
                     "[%s] Applied invite actions to %d inbox item(s)",
