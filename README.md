@@ -488,6 +488,7 @@ types are AND'd. A condition type that is omitted matches everything.
 | `(add-attendee "email@example.com")` | Add attendee (idempotent) |
 | `(add-attendee ... optional args ...)` | Add attendee with optional params |
 | `(set-alert mins type)` | Add/replace alert (`DISPLAY`, `EMAIL`, `AUDIO`) |
+| `(copy-to-calendar "Target Name")` | Copy event to another calendar (idempotent by UID) |
 | `(accept-invite)` | Accept inbox invite request (`METHOD:REQUEST`) |
 | `(decline-invite)` | Decline inbox invite request (`METHOD:REQUEST`) |
 | `(tentative-invite)` | Tentatively accept `METHOD:REQUEST` invite |
@@ -519,6 +520,33 @@ types are AND'd. A condition type that is omitted matches everything.
   `CLIENT` (client/tool sends iTIP), `NONE` (no scheduling messages).
 
 Parameter names are case-insensitive; values are normalized to upper-case.
+
+#### copy-to-calendar
+
+```lisp
+(copy-to-calendar "Target Calendar Name")
+```
+
+Copies the matching event into another calendar on **the same account**.  The
+copy is idempotent: if an event with the same `UID` already exists in the
+target calendar the action is skipped silently, so it is safe to use in both
+`on-create` and `on-update` blocks.
+
+The source event is **not** modified by this action — it does not trigger a
+write-back to the server unless another action in the same rule also changes
+the event.
+
+Typical use cases:
+
+- Mirror select events from a read-only subscribed calendar into a personal,
+  editable calendar.
+- Aggregate events from several source calendars into one consolidated view.
+- Keep a lightweight "copy" of filtered work events in a home calendar.
+
+> **Note:** `copy-to-calendar` targets any calendar visible on the account,
+> regardless of which calendars are listed under `calendars:` in your config.
+> The target calendar must already exist on the server — the action does not
+> create it.
 
 ### Examples
 
@@ -572,6 +600,23 @@ Parameter names are case-insensitive; values are normalized to upper-case.
 (rule
   (on-invite-cancel
     (delete-inbox-item)))
+
+; Copy every new event from a subscribed (read-only) calendar into a personal calendar.
+(rule
+  (when
+    (calendar "Subscribed Calendar"))
+  (on-create
+    (copy-to-calendar "Personal")))
+
+; Copy only work events containing "offsite" into a shared team calendar.
+(rule
+  (when
+    (calendar "Work")
+    (subject "*offsite*"))
+  (on-create
+    (copy-to-calendar "Team"))
+  (on-update
+    (copy-to-calendar "Team")))
 ```
 
 ### Debug logging
