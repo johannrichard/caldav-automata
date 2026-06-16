@@ -450,7 +450,13 @@ def _apply_rules(
     if isinstance(calendar_name, str):
         calendar_names = [calendar_name]
     else:
-        calendar_names = list(dict.fromkeys(name for name in calendar_name if name))
+        calendar_names = []
+        for name in calendar_name:
+            if name is None:
+                continue
+            text = str(name).strip()
+            if text and text not in calendar_names:
+                calendar_names.append(text)
 
     changed = False
     for component in cal.walk():
@@ -702,8 +708,8 @@ def _poll_ics_feed(
         return 0
 
     calendar_names = _extract_ics_calendar_names(ics_text, configured_name, feed_url)
-    cal_name = " | ".join(calendar_names)
-    logger.info("[%s] Fetched ICS feed", cal_name)
+    calendar_display_name = " | ".join(calendar_names)
+    logger.info("[%s] Fetched ICS feed", calendar_display_name)
 
     # Persist the updated HTTP caching headers immediately so that even if
     # processing fails partway through we do not re-fetch on the next poll.
@@ -741,9 +747,16 @@ def _poll_ics_feed(
         date_str = start_date.isoformat() if start_date is not None else "unknown"
 
         if title:
-            logger.info('[%s] New ICS event: "%s" (%s)', cal_name, title, date_str)
+            logger.info(
+                '[%s] New ICS event: "%s" (%s)',
+                calendar_display_name,
+                title,
+                date_str,
+            )
         else:
-            logger.info("[%s] New ICS event (date: %s)", cal_name, date_str)
+            logger.info(
+                "[%s] New ICS event (date: %s)", calendar_display_name, date_str
+            )
 
         # Wrap the single VEVENT in a minimal VCALENDAR (with any VTIMEZONEs)
         # so that _apply_rules can parse it via its standard code path.
@@ -757,7 +770,9 @@ def _poll_ics_feed(
             raw_ical = per_event_cal.to_ical().decode("utf-8")
         except Exception:
             logger.exception(
-                "[%s] Could not serialise VEVENT %s — skipping", cal_name, uid
+                "[%s] Could not serialise VEVENT %s — skipping",
+                calendar_display_name,
+                uid,
             )
             continue
 
