@@ -435,8 +435,9 @@ def _apply_rules(
     Parameters
     ----------
     calendar_name:
-        A single calendar name or multiple aliases used for rule matching.
-        A rule matches when any provided calendar name matches its
+        ``str | list[str]``. A single calendar name or multiple aliases used
+        for rule matching. A rule matches when any provided calendar name
+        (checked left-to-right) matches its
         ``(calendar "...")`` filter.
     calendar_getter:
         Optional callable ``(name: str) -> caldav.Calendar | None`` forwarded
@@ -448,10 +449,10 @@ def _apply_rules(
         logger.exception("Could not parse iCal payload — skipping event")
         return None
 
-    raw_calendar_names = (
+    calendar_name_list = (
         [calendar_name] if isinstance(calendar_name, str) else calendar_name
     )
-    calendar_names = _normalise_calendar_names(raw_calendar_names)
+    calendar_names = _normalise_calendar_names(calendar_name_list)
 
     changed = False
     for component in cal.walk():
