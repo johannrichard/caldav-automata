@@ -1,6 +1,36 @@
 # CHANGELOG
 
 
+## v0.11.0 (2026-06-16)
+
+### Bug Fixes
+
+- :bug: handle None calendar names in available-calendars log
+  ([`1e7440a`](https://github.com/johannrichard/caldav-automata/commit/1e7440ae44797fb6b80277195839a42992d8a8c9))
+
+- :warning: warn when copy-to-calendar skips idempotency due to missing UID
+  ([`bf64725`](https://github.com/johannrichard/caldav-automata/commit/bf647251c5476eb9d52a008caab7f3eb56618be8))
+
+### Documentation
+
+- :memo: document copy-to-calendar action in README with examples
+  ([`a54c635`](https://github.com/johannrichard/caldav-automata/commit/a54c635980f701fd6f9bccfdf35791547278d967))
+
+- :pencil: add copy-to-calendar example and docs to example.lisp.example
+  ([`4904b41`](https://github.com/johannrichard/caldav-automata/commit/4904b41d27481f50f0a764f957f242a9bdb6291a))
+
+### Features
+
+- :sparkles: add copy-to-calendar action with UID-based idempotency
+  ([`4bef34b`](https://github.com/johannrichard/caldav-automata/commit/4bef34b1da5523da54cdccfc4400e9ab34b3ef5f))
+
+- :sparkles: log available calendars on account connect
+  ([`4908843`](https://github.com/johannrichard/caldav-automata/commit/4908843b860ee1d4c2b565ff2a92fe9782b0b53e))
+
+- :zap: thread calendar_getter through rule dispatch chain for copy-to-calendar
+  ([`16543f8`](https://github.com/johannrichard/caldav-automata/commit/16543f8d3f663911a2dfc0ce72d808f38347b0df))
+
+
 ## v0.10.3 (2026-06-13)
 
 ### Build System
