@@ -48,3 +48,26 @@ accounts:
   #   # password: "${NEXTCLOUD_PASSWORD}"
   #   calendars:
   #     - "*"            # watch every calendar on this account
+
+# ── ICS feeds (read-only) ─────────────────────────────────────────────────
+#
+# ICS feeds are public or shared calendars published as .ics files over HTTP
+# or HTTPS.  No credentials are required — just a URL.
+#
+# The daemon polls each feed on the same interval as CalDAV accounts and
+# applies your LISP rules to every new event it encounters.  Because ICS feeds
+# are read-only, actions that modify the event (add-attendee, set-alert, …)
+# have no effect on the source, but copy-to-calendar still works: it writes the
+# event into any writable CalDAV calendar on any of the configured accounts.
+#
+# Calendar name — used to match (calendar "…") clauses in your rules — is
+# taken from the X-WR-CALNAME property inside the ICS file when present.  The
+# name: field below is used as a fallback when that property is absent.  If
+# neither is available the URL itself is used as the name.
+#
+# ics_feeds:
+#   - url: "https://calendar.google.com/calendar/ical/hello%40summerofprotocols.com/public/basic.ics"
+#     name: "Summer of Protocols"   # optional — overridden by X-WR-CALNAME if present
+#
+#   - url: "https://example.com/team-events.ics"
+#     # name is optional; omit it and the daemon will use X-WR-CALNAME or the URL

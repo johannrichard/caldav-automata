@@ -58,6 +58,8 @@ import os
 import signal
 import sqlite3
 import time
+import urllib.error
+import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -102,6 +104,13 @@ class _EventState:
             "CREATE TABLE IF NOT EXISTS calendar_sync_tokens ("
             "calendar_url TEXT PRIMARY KEY, "
             "sync_token TEXT NOT NULL"
+            ")"
+        )
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS ics_feed_state ("
+            "feed_url TEXT PRIMARY KEY, "
+            "etag TEXT, "
+            "last_modified TEXT"
             ")"
         )
         self._conn.commit()
@@ -168,6 +177,26 @@ class _EventState:
             "ON CONFLICT(calendar_url) DO UPDATE "
             "SET sync_token = excluded.sync_token",
             (calendar_url, token),
+        )
+
+    def get_feed_state(self, feed_url: str) -> tuple[str | None, str | None]:
+        """Return *(etag, last_modified)* for a previously-fetched ICS feed."""
+        row = self._conn.execute(
+            "SELECT etag, last_modified FROM ics_feed_state WHERE feed_url = ?",
+            (feed_url,),
+        ).fetchone()
+        return (row[0], row[1]) if row else (None, None)
+
+    def set_feed_state(
+        self, feed_url: str, etag: str | None, last_modified: str | None
+    ) -> None:
+        """Persist HTTP caching headers for an ICS feed URL."""
+        self._conn.execute(
+            "INSERT INTO ics_feed_state(feed_url, etag, last_modified) "
+            "VALUES(?, ?, ?) "
+            "ON CONFLICT(feed_url) DO UPDATE "
+            "SET etag = excluded.etag, last_modified = excluded.last_modified",
+            (feed_url, etag, last_modified),
         )
 
     def mark_self_written(self, url: str) -> None:
@@ -544,6 +573,189 @@ def _normalise_etag(etag: str | None) -> str:
     return etag.strip('"')
 
 
+# ---------------------------------------------------------------------------
+# ICS feed fetching and polling
+# ---------------------------------------------------------------------------
+
+
+def _fetch_ics_feed(
+    url: str,
+    prev_etag: str | None = None,
+    prev_last_modified: str | None = None,
+) -> tuple[str | None, str | None, str | None]:
+    """
+    Fetch an ICS feed from *url* using conditional GET when possible.
+
+    Returns *(ics_text, etag, last_modified)*.  When the server responds with
+    ``304 Not Modified``, *ics_text* is ``None`` and the cached header values
+    are returned unchanged so the caller can skip processing.
+    """
+    headers: dict[str, str] = {
+        "User-Agent": "CalDAV Automata/1.0",
+        "Accept": "text/calendar, */*",
+    }
+    if prev_etag:
+        headers["If-None-Match"] = prev_etag
+    if prev_last_modified:
+        headers["If-Modified-Since"] = prev_last_modified
+
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            ics_bytes = resp.read()
+            # Honour charset from Content-Type when present; fall back to UTF-8.
+            content_type = resp.headers.get("Content-Type", "")
+            charset = "utf-8"
+            for part in content_type.split(";"):
+                part = part.strip()
+                if part.lower().startswith("charset="):
+                    charset = part.split("=", 1)[1].strip().strip('"') or charset
+                    break
+            ics_text = ics_bytes.decode(charset, errors="replace")
+            etag = resp.headers.get("ETag") or None
+            last_modified = resp.headers.get("Last-Modified") or None
+            return ics_text, etag, last_modified
+    except urllib.error.HTTPError as exc:
+        if exc.code == 304:
+            return None, prev_etag, prev_last_modified
+        raise
+
+
+def _extract_cal_name(ics_text: str, configured_name: str | None, url: str) -> str:
+    """Return the display name for an ICS feed.
+
+    Precedence: ``X-WR-CALNAME`` property in the ICS file > *configured_name*
+    from the config entry > the raw *url* as a last resort.
+    """
+    try:
+        cal = Calendar.from_ical(ics_text)
+        for component in cal.walk():
+            if component.name == "VCALENDAR":
+                calname = str(component.get("X-WR-CALNAME", "")).strip()
+                if calname:
+                    return calname
+                break
+    except Exception:
+        pass
+    if configured_name:
+        return configured_name
+    return url
+
+
+def _poll_ics_feed(
+    feed: dict,
+    state: _EventState,
+    rules: list[Rule],
+    calendar_getter=None,
+) -> int:
+    """
+    Fetch an ICS feed and apply rules to events that have not been seen before.
+
+    ICS feeds are read-only: any iCal string returned by ``_apply_rules`` is
+    discarded.  The only lasting side-effect is produced by actions such as
+    ``copy-to-calendar`` that operate through *calendar_getter*.
+
+    Returns the number of events on which at least one action ran.
+    """
+    feed_url = feed.get("url", "")
+    configured_name = feed.get("name")
+
+    if not feed_url:
+        logger.warning("ICS feed entry has no URL — skipping")
+        return 0
+
+    logger.debug("Polling ICS feed %r", feed_url)
+    prev_etag, prev_last_modified = state.get_feed_state(feed_url)
+
+    try:
+        ics_text, etag, last_modified = _fetch_ics_feed(
+            feed_url, prev_etag, prev_last_modified
+        )
+    except Exception:
+        logger.exception("Could not fetch ICS feed %r", feed_url)
+        return 0
+
+    if ics_text is None:
+        logger.debug("ICS feed %r unchanged (304 Not Modified)", feed_url)
+        return 0
+
+    cal_name = _extract_cal_name(ics_text, configured_name, feed_url)
+    logger.info("[%s] Fetched ICS feed", cal_name)
+
+    # Persist the updated HTTP caching headers immediately so that even if
+    # processing fails partway through we do not re-fetch on the next poll.
+    state.set_feed_state(feed_url, etag, last_modified)
+    state.save()
+
+    try:
+        cal = Calendar.from_ical(ics_text)
+    except Exception:
+        logger.exception("[%s] Could not parse ICS feed", cal_name)
+        return 0
+
+    # Pre-collect VTIMEZONE components so they can be included when wrapping
+    # individual VEVENTs.  This preserves timezone info for copied events.
+    vtimezones = [c for c in cal.walk() if c.name == "VTIMEZONE"]
+
+    acted = 0
+    for component in cal.walk():
+        if component.name != "VEVENT":
+            continue
+
+        uid = str(component.get("UID", "")).strip()
+        if not uid:
+            logger.debug("[%s] Skipping VEVENT without UID", cal_name)
+            continue
+
+        # Use a namespaced state key so ICS UIDs never collide with CalDAV URLs.
+        state_key = f"ics:{feed_url}#{uid}"
+        if state.is_known(state_key):
+            # Already processed in a previous cycle — skip.
+            continue
+
+        title = str(component.get("SUMMARY", ""))
+        start_date = _event_start_date(component)
+        date_str = start_date.isoformat() if start_date is not None else "unknown"
+
+        if title:
+            logger.info('[%s] New ICS event: "%s" (%s)', cal_name, title, date_str)
+        else:
+            logger.info("[%s] New ICS event (date: %s)", cal_name, date_str)
+
+        # Wrap the single VEVENT in a minimal VCALENDAR (with any VTIMEZONEs)
+        # so that _apply_rules can parse it via its standard code path.
+        per_event_cal = Calendar()
+        per_event_cal.add("prodid", "-//CalDAV Automata//EN")
+        per_event_cal.add("version", "2.0")
+        for vtz in vtimezones:
+            per_event_cal.add_component(vtz)
+        per_event_cal.add_component(component)
+        try:
+            raw_ical = per_event_cal.to_ical().decode("utf-8")
+        except Exception:
+            logger.exception(
+                "[%s] Could not serialise VEVENT %s — skipping", cal_name, uid
+            )
+            continue
+
+        # Apply rules.  The result is intentionally discarded (read-only feed).
+        # copy-to-calendar and similar side-effecting actions still execute.
+        _apply_rules(
+            raw_ical,
+            cal_name,
+            is_new=True,
+            rules=rules,
+            calendar_getter=calendar_getter,
+        )
+
+        # Mark this UID as seen so it is not re-processed on the next cycle.
+        state.set_etag(state_key, "seen")
+        state.save()
+        acted += 1
+
+    return acted
+
+
 def _poll_calendar(
     calendar: caldav.Calendar,
     state: _EventState,
@@ -889,7 +1101,13 @@ def _poll_account(
     state: _EventState,
     rules: list[Rule],
     owner_email_cache: dict[str, str | None],
-) -> None:
+) -> list:
+    """Poll one CalDAV account and return the list of discovered calendars.
+
+    Returns an empty list when the account cannot be reached so that callers
+    can still build a cross-account ``calendar_getter`` from whatever accounts
+    did connect successfully.
+    """
     label = account.get("name", account.get("url", "?"))
     url = account.get("url", "")
     username = account.get("username", "")
@@ -922,7 +1140,7 @@ def _poll_account(
         all_calendars = principal.calendars()
     except Exception:
         logger.exception("Could not connect to account %r (%s)", label, url)
-        return
+        return []
 
     cal_names = ", ".join(f'"{c.name or "(unnamed)"}"' for c in all_calendars)
     logger.info("[%s] Available calendars: %s", label, cal_names or "(none)")
@@ -1012,6 +1230,7 @@ def _poll_account(
             )
 
     logger.debug("Account %r: polled %d calendar(s)", label, watched_count)
+    return list(all_calendars)
 
 
 # ---------------------------------------------------------------------------
@@ -1059,13 +1278,16 @@ class Daemon:
         interval = int(self._config.get("poll_interval", 30))
         rules_dir = self._config.get("rules_dir", "/rules")
         accounts: list[dict] = self._config.get("accounts", [])
+        ics_feeds: list[dict] = self._config.get("ics_feeds", [])
         rules: list[Rule] = []
         rules_snapshot: dict[str, tuple[int, int]] = {}
         owner_email_cache: dict[str, str | None] = {}
 
         logger.info(
-            "CalDAV Automata started — %d account(s), poll every %ds, rules: %s",
+            "CalDAV Automata started — %d account(s), %d ICS feed(s), "
+            "poll every %ds, rules: %s",
             len(accounts),
+            len(ics_feeds),
             interval,
             rules_dir,
         )
@@ -1106,10 +1328,32 @@ class Daemon:
                 rules_snapshot = current_snapshot
                 logger.debug("Rules loaded: %d", len(rules))
 
+            # Poll CalDAV accounts and accumulate their calendars so that
+            # copy-to-calendar from ICS feed rules can target any account.
+            all_caldav_calendars: list = []
             for account in accounts:
                 if not self._running:
                     break
-                _poll_account(account, self._state, rules, owner_email_cache)
+                account_cals = _poll_account(
+                    account, self._state, rules, owner_email_cache
+                )
+                all_caldav_calendars.extend(account_cals)
+
+            # Poll ICS feeds using a unified getter that spans all accounts.
+            if ics_feeds and self._running:
+                shared_getter = _make_calendar_getter(all_caldav_calendars)
+                for feed in ics_feeds:
+                    if not self._running:
+                        break
+                    count = _poll_ics_feed(
+                        feed, self._state, rules, calendar_getter=shared_getter
+                    )
+                    if count:
+                        logger.info(
+                            "Applied rules to %d ICS event(s) from %r",
+                            count,
+                            feed.get("url", "?"),
+                        )
 
             self._state.save()
 
