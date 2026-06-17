@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.13.1 (2026-06-17)
+
+### Build System
+
+- :package: exclude local rule files from packaging
+  ([`0d333a2`](https://github.com/johannrichard/caldav-automata/commit/0d333a2e869a3615e8019e54e8f3a1f345600c65))
+
+
 ## v0.13.0 (2026-06-17)
 
 ### Features
