@@ -27,7 +27,6 @@ include-package-data = true
 "share/caldav-automata/config" = ["config/calendar.example.yaml"]
 "share/caldav-automata/rules" = [
   "rules/example.lisp.example",
-  "rules/family.lisp",
 ]
 "share/caldav-automata/deploy/systemd" = [
   "deploy/systemd/caldav-automata.env.example",
