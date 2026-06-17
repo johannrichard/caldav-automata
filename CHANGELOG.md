@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.13.0 (2026-06-17)
+
+### Features
+
+- :sparkles: add date-on-or-after filter
+  ([`87a4b71`](https://github.com/johannrichard/caldav-automata/commit/87a4b71a9c5bf2417b130fb0a27cd12ecb851a6b))
+
+
 ## v0.12.2 (2026-06-16)
 
 ### Build System
