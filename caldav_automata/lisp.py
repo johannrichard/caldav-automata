@@ -12,6 +12,7 @@ Supported rule syntax
         (note "*urgent*")       ; fnmatch pattern on DESCRIPTION; multiple = OR
         (organizer "*@acme.com"); fnmatch pattern on ORGANIZER; multiple = OR
         (date-on "2026-05-21")  ; event DTSTART on this day; multiple = OR
+        (date-on-or-after "today") ; event DTSTART on/after this day; multiple = OR
         (date-before "today")   ; event DTSTART before this day; multiple = OR
         (date-after "today"))   ; event DTSTART after this day; multiple = OR
       (on-create              ; triggered when a new event is stored
@@ -23,18 +24,14 @@ Supported rule syntax
         (accept-invite)
         (delete-inbox-item))
       (on-invite-reply        ; triggered for inbox METHOD:REPLY items
-                (delete-inbox-item))
-            (on-invite-cancel       ; triggered for inbox METHOD:CANCEL items
-                (delete-inbox-item))
-            (on-invite-add          ; triggered for inbox METHOD:ADD items
-                (delete-inbox-item))
-            (on-invite-cancel       ; triggered for inbox METHOD:CANCEL items
-                (delete-inbox-item))
-            (on-invite-add          ; triggered for inbox METHOD:ADD items
+        (delete-inbox-item))
+      (on-invite-cancel       ; triggered for inbox METHOD:CANCEL items
+        (delete-inbox-item))
+      (on-invite-add          ; triggered for inbox METHOD:ADD items
         (delete-inbox-item)))
 
 Within each condition type (calendar, subject, note, organizer, date-on,
-date-before, date-after) multiple values are OR'd.
+date-on-or-after, date-before, date-after) multiple values are OR'd.
 Different condition types are AND'd: all non-empty condition groups must match.
 
 Comments start with `;` and run to the end of the line.
@@ -126,6 +123,7 @@ class Rule:
     notes: list[str] = field(default_factory=list)
     organizers: list[str] = field(default_factory=list)
     date_on: list[str] = field(default_factory=list)
+    date_on_or_after: list[str] = field(default_factory=list)
     date_before: list[str] = field(default_factory=list)
     date_after: list[str] = field(default_factory=list)
     on_create: list = field(default_factory=list)
@@ -142,6 +140,7 @@ class Rule:
             f"notes={self.notes!r}, "
             f"organizers={self.organizers!r}, "
             f"date_on={self.date_on!r}, "
+            f"date_on_or_after={self.date_on_or_after!r}, "
             f"date_before={self.date_before!r}, "
             f"date_after={self.date_after!r}, "
             f"on_create={self.on_create!r}, "
@@ -193,6 +192,8 @@ def _compile_form(form) -> Rule | None:
                     rule.organizers.append(str(cond[1]))
                 elif cond[0] == "date-on":
                     rule.date_on.append(_parse_date_spec(cond[1]))
+                elif cond[0] == "date-on-or-after":
+                    rule.date_on_or_after.append(_parse_date_spec(cond[1]))
                 elif cond[0] == "date-before":
                     rule.date_before.append(_parse_date_spec(cond[1]))
                 elif cond[0] == "date-after":

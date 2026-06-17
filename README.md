@@ -439,7 +439,8 @@ any sequence of characters:
 ```
 
 Date filters compare by calendar day. They accept either an ISO date like
-`"2026-05-21"` or the relative value `"today"`:
+`"2026-05-21"` or the relative value `"today"`. Available operators are
+`date-on`, `date-on-or-after`, `date-after`, and `date-before`:
 
 ```lisp
 (rule
@@ -449,7 +450,7 @@ Date filters compare by calendar day. They accept either an ISO date like
 
 (rule
   (when
-    (date-after "2026-05-21")
+    (date-on-or-after "2026-05-21")
     (date-before "2026-06-01"))
   …)
 ```
@@ -475,7 +476,7 @@ types are AND'd. A condition type that is omitted matches everything.
 ; Matches events that start within a fixed date window.
 (rule
   (when
-    (date-after "2026-05-21")
+    (date-on-or-after "2026-05-21")
     (date-before "2026-06-01"))
   …)
 
@@ -655,7 +656,7 @@ CalDAV accounts, not just those on a specific account.
 (rule
   (when
     (calendar "Work")
-    (date-after "2026-05-21"))
+    (date-on-or-after "2026-05-21"))
   (on-create
     (set-alert 30 "DISPLAY")))
 

@@ -302,6 +302,8 @@ def _matches_date_specs(
         target = _resolve_date_spec(spec)
         if operator == "on" and event_date == target:
             return True
+        if operator == "on-or-after" and event_date >= target:
+            return True
         if operator == "before" and event_date < target:
             return True
         if operator == "after" and event_date > target:
@@ -382,6 +384,8 @@ def _matches(
         ):
             return False
     if not _matches_date_specs(start_date, rule.date_on, "on"):
+        return False
+    if not _matches_date_specs(start_date, rule.date_on_or_after, "on-or-after"):
         return False
     if not _matches_date_specs(start_date, rule.date_before, "before"):
         return False

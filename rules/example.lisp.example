@@ -13,6 +13,7 @@
 ;       (note "*keyword*")           ; fnmatch on event DESCRIPTION; multiple = OR
 ;       (organizer "*@example.com")  ; fnmatch on ORGANIZER; multiple = OR
 ;       (date-on "today")            ; DTSTART on this day; multiple = OR
+;       (date-on-or-after "today")   ; DTSTART on/after this day; multiple = OR
 ;       (date-after "2026-05-21"))   ; DTSTART after this day; multiple = OR
 ;     (on-create                     ; actions run when a new event is saved
 ;       <action> ...)
@@ -139,11 +140,11 @@
 ;     (set-alert 60 "EMAIL" "Urgent event!")))
 
 
-; Only remind new work events after a specific date.
+; Only remind new work events on or after a specific date.
 ; (rule
 ;   (when
 ;     (calendar "Work")
-;     (date-after "2026-05-21"))
+;     (date-on-or-after "2026-05-21"))
 ;   (on-create
 ;     (set-alert 30 "DISPLAY" "Upcoming work event")))
 
