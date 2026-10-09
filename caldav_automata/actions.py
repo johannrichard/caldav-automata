@@ -8,10 +8,13 @@ action name from the parsed Lisp form to the appropriate function.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import math
 import re
 import urllib.request
+from collections import OrderedDict
 from datetime import timedelta
 
 from icalendar import Alarm, Calendar as iCalendar, vCalAddress
@@ -207,7 +210,8 @@ def set_alert(
 _VALID_CLASSES = {"PUBLIC", "PRIVATE", "CONFIDENTIAL"}
 _REDACT_FIELDS = ("SUMMARY", "DESCRIPTION", "LOCATION")
 _LLM_CONFIG: dict = {}
-_LLM_CACHE: dict[tuple, float] = {}
+_LLM_CACHE: OrderedDict[tuple, float] = OrderedDict()
+_LLM_CACHE_MAXSIZE = 1024
 
 
 def set_llm_config(config: dict | None) -> None:
@@ -243,6 +247,10 @@ def _matches_keywords(event, keywords) -> bool:
 
 def redact_words(event, replacement: str, words, fields=_REDACT_FIELDS) -> bool:
     """Replace whole-word, case-insensitive matches of *words* in *fields*."""
+    fields = tuple(str(field).upper() for field in fields)
+    if not fields or any(field not in _REDACT_FIELDS for field in fields):
+        logger.warning("redact-words: fields must be SUMMARY, DESCRIPTION, or LOCATION")
+        return False
     words = [str(w) for w in words if str(w)]
     if not words:
         return False
@@ -254,11 +262,13 @@ def redact_words(event, replacement: str, words, fields=_REDACT_FIELDS) -> bool:
     for field in fields:
         if field not in event:
             continue
-        old = str(event[field])
+        prop = event[field]
+        old = str(prop)
         new = pattern.sub(lambda _: replacement, old)
         if new != old:
+            params = dict(getattr(prop, "params", {}))
             del event[field]
-            event.add(field, new)
+            event.add(field, new, params)
             changed = True
     return changed
 
@@ -353,37 +363,49 @@ def classify_with_llm(
     if not cfg.get("enabled") or not cfg.get("model"):
         logger.warning("classify-with-llm: llm.enabled/model not configured")
         return False
+    try:
+        threshold = float(threshold)
+    except (TypeError, ValueError):
+        logger.warning("classify-with-llm: invalid threshold")
+        return False
+    if not math.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
+        logger.warning("classify-with-llm: threshold must be between 0 and 1")
+        return False
+
+    attendees = event.get("ATTENDEE", [])
+    if not isinstance(attendees, list):
+        attendees = [attendees]
+    domains = sorted({str(a).rsplit("@", 1)[-1] for a in attendees if "@" in str(a)})
+    dtstart = event.get("DTSTART")
+    dtend = event.get("DTEND")
+    info = {
+        "summary": str(event.get("SUMMARY", "")),
+        "description": str(event.get("DESCRIPTION", "")),
+        "location": str(event.get("LOCATION", "")),
+        "start": dtstart.dt.isoformat() if dtstart else "",
+        "end": dtend.dt.isoformat() if dtend else "",
+        "weekday": dtstart.dt.strftime("%A") if dtstart else "",
+        "organizer_domain": str(event.get("ORGANIZER", "")).rsplit("@", 1)[-1],
+        "attendee_domains": domains,
+    }
+    state = "Calendar event: " + json.dumps(info)
     key = (
         str(event.get("UID", "")),
         str(event.get("SEQUENCE", "")),
         str(event.get("LAST-MODIFIED", "")),
         prompt,
+        str(cfg["model"]),
+        hashlib.sha256(state.encode()).hexdigest(),
     )
-    result = _LLM_CACHE.get(key) if key[0] else None
+    result = None
+    if key[0] and key in _LLM_CACHE:
+        result = _LLM_CACHE[key]
+        _LLM_CACHE.move_to_end(key)
     if result is None:
-        attendees = event.get("ATTENDEE", [])
-        if not isinstance(attendees, list):
-            attendees = [attendees]
-        domains = sorted(
-            {str(a).rsplit("@", 1)[-1] for a in attendees if "@" in str(a)}
-        )
-        dtstart = event.get("DTSTART")
-        dtend = event.get("DTEND")
-        info = {
-            "summary": str(event.get("SUMMARY", "")),
-            "description": str(event.get("DESCRIPTION", "")),
-            "location": str(event.get("LOCATION", "")),
-            "start": dtstart.dt.isoformat() if dtstart else "",
-            "end": dtend.dt.isoformat() if dtend else "",
-            "weekday": dtstart.dt.strftime("%A") if dtstart else "",
-            "organizer_domain": str(event.get("ORGANIZER", "")).rsplit("@", 1)[-1],
-            "attendee_domains": domains,
-        }
         instructions = (
             "Is this calendar event private (personal, not work-related)?"
             + (" " + prompt if prompt else "")
         )
-        state = "Calendar event: " + json.dumps(info)
         try:
             payload = (request or _llm_request)(cfg, state, instructions)
         except Exception as exc:
@@ -395,6 +417,9 @@ def classify_with_llm(
             return False
         if key[0]:
             _LLM_CACHE[key] = result
+            _LLM_CACHE.move_to_end(key)
+            while len(_LLM_CACHE) > _LLM_CACHE_MAXSIZE:
+                _LLM_CACHE.popitem(last=False)
     if result >= threshold:
         return set_class(event, value)
     return False
@@ -662,9 +687,24 @@ def apply_action(
         words = [a for a in args[1:] if not isinstance(a, list)]
         opts = {}
         for a in args[1:]:
-            if isinstance(a, list) and a:
-                opts[str(a[0]).lower()] = [str(x) for x in a[1:]]
-        scope = (opts.get("scope") or ["stored"])[0].lower()
+            if not isinstance(a, list):
+                continue
+            if not a:
+                logger.warning("redact-words: empty option")
+                return False
+            option = str(a[0]).lower()
+            if option not in {"fields", "scope"} or option in opts:
+                logger.warning("redact-words: unknown or duplicate option %r", option)
+                return False
+            opts[option] = [str(x) for x in a[1:]]
+        scope_values = opts.get("scope", ["stored"])
+        if len(scope_values) != 1 or scope_values[0].lower() not in {
+            "stored",
+            "outgoing",
+        }:
+            logger.warning("redact-words: scope must be stored or outgoing")
+            return False
+        scope = scope_values[0].lower()
         if scope == "outgoing":
             logger.warning(
                 "redact-words: scope outgoing unsupported (iTIP is generated by "
@@ -672,6 +712,11 @@ def apply_action(
             )
             return False
         fields = tuple(f.upper() for f in opts.get("fields", _REDACT_FIELDS))
+        if not fields or any(field not in _REDACT_FIELDS for field in fields):
+            logger.warning(
+                "redact-words: fields must be SUMMARY, DESCRIPTION, or LOCATION"
+            )
+            return False
         return redact_words(event, str(args[0]), words, fields)
 
     elif name == "add-category":

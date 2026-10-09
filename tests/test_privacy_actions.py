@@ -35,12 +35,44 @@ def test_redact_replacement_is_literal():
     assert str(e["SUMMARY"]) == "Private \\1 appointment"
 
 
+def test_redact_preserves_property_parameters():
+    e = _ev()
+    e["SUMMARY"].params["LANGUAGE"] = "en"
+    assert a.apply_action(e, ["redact-words", "Private", "dentist"])
+    assert str(e["SUMMARY"]) == "Private appointment"
+    assert e["SUMMARY"].params["LANGUAGE"] == "en"
+
+
+def test_redact_fields_option_narrows_properties():
+    e = _ev("Dentist appointment", "Dentist details")
+    assert a.apply_action(
+        e, ["redact-words", "Private", "dentist", ["fields", "DESCRIPTION"]]
+    )
+    assert str(e["SUMMARY"]) == "Dentist appointment"
+    assert str(e["DESCRIPTION"]) == "Private details"
+
+
 def test_redact_outgoing_scope_skipped():
     e = _ev()
     assert not a.apply_action(
         e, ["redact-words", "P", "dentist", ["scope", "outgoing"]]
     )
     assert str(e["SUMMARY"]) == "Dentist appointment"
+
+
+def test_redact_rejects_invalid_options_without_mutating_event():
+    invalid_forms = [
+        ["redact-words", "Private", "dentist", ["scpoe", "outgoing"]],
+        ["redact-words", "Private", "dentist", ["scope", "outgoing", "stored"]],
+        ["redact-words", "Private", "dentist", ["scope", "elsewhere"]],
+        ["redact-words", "Private", "dentist", ["fields", "DTSTART"]],
+        ["redact-words", "Private", "dentist", ["fields"]],
+        ["redact-words", "Private", "dentist", []],
+    ]
+    for form in invalid_forms:
+        e = _ev()
+        assert not a.apply_action(e, form)
+        assert str(e["SUMMARY"]) == "Dentist appointment"
 
 
 def test_class_by_keyword_and_category():
@@ -72,4 +104,58 @@ def test_llm_decision():
     e3 = _ev()
     e3["UID"] = "u3"
     assert not a.classify_with_llm(e3, request=lambda c, s, i: {})
+    a.set_llm_config(None)
+
+
+def test_llm_cache_key_includes_classification_state():
+    a.set_llm_config({"enabled": True, "model": "respan/span-01-lite"})
+    calls = []
+    response = {"answers": {"is_private": {"type": "noul", "noul": 0.93}}}
+
+    def request(config, state, instructions):
+        calls.append(state)
+        return response
+
+    e = _ev()
+    assert a.classify_with_llm(e, request=request)
+    e["SUMMARY"] = "Updated appointment"
+    del e["CLASS"]
+    assert a.classify_with_llm(e, request=request)
+    assert len(calls) == 2
+    a.set_llm_config(None)
+
+
+def test_llm_cache_is_bounded(monkeypatch):
+    a.set_llm_config({"enabled": True, "model": "respan/span-01-lite"})
+    monkeypatch.setattr(a, "_LLM_CACHE_MAXSIZE", 2)
+    calls = []
+    response = {"answers": {"is_private": {"type": "noul", "noul": 0.1}}}
+
+    def request(config, state, instructions):
+        calls.append(state)
+        return response
+
+    for uid in ("u1", "u2", "u3"):
+        e = _ev()
+        e["UID"] = uid
+        assert not a.classify_with_llm(e, request=request)
+    assert len(a._LLM_CACHE) == 2
+
+    e = _ev()
+    assert not a.classify_with_llm(e, request=request)
+    assert len(calls) == 4
+    assert len(a._LLM_CACHE) == 2
+    a.set_llm_config(None)
+
+
+def test_llm_rejects_out_of_range_thresholds():
+    a.set_llm_config({"enabled": True, "model": "respan/span-01-lite"})
+    for threshold in (-0.1, 1.1, float("nan")):
+        assert not a.classify_with_llm(
+            _ev(),
+            threshold=threshold,
+            request=lambda config, state, instructions: (_ for _ in ()).throw(
+                AssertionError("invalid threshold should not make a request")
+            ),
+        )
     a.set_llm_config(None)
