@@ -274,7 +274,7 @@ def redact_words(event, replacement: str, words, fields=_REDACT_FIELDS) -> bool:
         if field_changed:
             del event[field]
             for value, params in replacements:
-                event.add(field, value, params)
+                event.add(field, value, parameters=params)
             changed = True
     return changed
 
