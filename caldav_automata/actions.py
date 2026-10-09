@@ -255,7 +255,7 @@ def redact_words(event, replacement: str, words, fields=_REDACT_FIELDS) -> bool:
         if field not in event:
             continue
         old = str(event[field])
-        new = pattern.sub(replacement, old)
+        new = pattern.sub(lambda _: replacement, old)
         if new != old:
             del event[field]
             event.add(field, new)

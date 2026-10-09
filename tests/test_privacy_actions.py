@@ -28,6 +28,13 @@ def test_redact_whole_words():
     assert not a.apply_action(e, ["redact-words", "Private", "dentist"])
 
 
+def test_redact_replacement_is_literal():
+    e = _ev()
+    replacement = r"Private \1"
+    assert a.apply_action(e, ["redact-words", replacement, "dentist"])
+    assert str(e["SUMMARY"]) == "Private \\1 appointment"
+
+
 def test_redact_outgoing_scope_skipped():
     e = _ev()
     assert not a.apply_action(
