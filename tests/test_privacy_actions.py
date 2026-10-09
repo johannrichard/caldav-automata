@@ -51,6 +51,20 @@ def test_redact_preserves_property_parameters():
     assert e["SUMMARY"].params["LANGUAGE"] == "en"
 
 
+def test_redact_preserves_repeated_text_properties():
+    e = _ev()
+    e.add("DESCRIPTION", "Dentist details", parameters={"LANGUAGE": "en"})
+    e.add("DESCRIPTION", "Dentist notes", parameters={"LANGUAGE": "fr"})
+
+    assert a.apply_action(e, ["redact-words", "Private", "dentist"])
+    descriptions = e["DESCRIPTION"]
+    assert [str(value) for value in descriptions] == [
+        "Private details",
+        "Private notes",
+    ]
+    assert [value.params["LANGUAGE"] for value in descriptions] == ["en", "fr"]
+
+
 def test_redact_fields_option_narrows_properties():
     e = _ev("Dentist appointment", "Dentist details")
     assert a.apply_action(

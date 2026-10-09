@@ -262,13 +262,19 @@ def redact_words(event, replacement: str, words, fields=_REDACT_FIELDS) -> bool:
     for field in fields:
         if field not in event:
             continue
-        prop = event[field]
-        old = str(prop)
-        new = pattern.sub(lambda _: replacement, old)
-        if new != old:
-            params = dict(getattr(prop, "params", {}))
+        props = event[field]
+        props = props if isinstance(props, list) else [props]
+        replacements = []
+        field_changed = False
+        for prop in props:
+            old = str(prop)
+            new = pattern.sub(lambda _: replacement, old)
+            field_changed = field_changed or new != old
+            replacements.append((new, dict(getattr(prop, "params", {}))))
+        if field_changed:
             del event[field]
-            event.add(field, new, params)
+            for value, params in replacements:
+                event.add(field, value, params)
             changed = True
     return changed
 
