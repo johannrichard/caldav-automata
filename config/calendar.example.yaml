@@ -70,3 +70,14 @@ accounts:
 #
 #   - url: "https://example.com/team-events.ics"
 #     # name is optional; omit it and the daemon will use X-WR-CALNAME or the URL
+
+# ── LLM classification (optional, opt-in) ────────────────────────────────
+# Used by the (classify-with-llm ...) rule action. Event content is sent to
+# the configured third-party endpoint.
+#
+# llm:
+#   enabled: true
+#   model: "respan/span-01-lite"
+#   api_key: "${OPENROUTER_API_KEY}"
+#   # endpoint: "https://openrouter.ai/api/v1/decisions"
+#   # timeout: 20

@@ -178,3 +178,21 @@
 ;     (copy-to-calendar "Team"))
 ;   (on-update
 ;     (copy-to-calendar "Team")))
+
+
+; Mark all events private (RFC 5545 CLASS property).
+; (rule (when (calendar "*")) (on-create (set-class "PRIVATE")))
+
+; Redact words and tag health events as private.
+; (rule
+;   (when (calendar "Personal"))
+;   (on-create
+;     (redact-words "Private" "dentist" "therapy")
+;     (set-class-by-keyword "PRIVATE" (keywords "doctor" "dentist") (category "Health"))))
+
+; Let an OpenRouter decision model decide (noul probability >= threshold) (requires llm: block in config; opt-in).
+; (rule
+;   (when (calendar "Work"))
+;   (on-create
+;     (classify-with-llm "PRIVATE" threshold 0.8
+;       prompt "Events outside 9-17 on weekdays are likely private.")))
