@@ -67,7 +67,7 @@ from typing import Any
 import caldav
 from icalendar import Calendar
 
-from .actions import apply_action
+from .actions import apply_action, set_llm_config
 from .lisp import Rule, load_rules
 
 logger = logging.getLogger(__name__)
@@ -1299,6 +1299,7 @@ class Daemon:
 
     def __init__(self, config: dict) -> None:
         self._config = config
+        set_llm_config(config.get("llm"))
         self._running = True
         self._sigint_count = 0
         state_db_file = config.get("state_db_file")

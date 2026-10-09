@@ -8,7 +8,10 @@ action name from the parsed Lisp form to the appropriate function.
 
 from __future__ import annotations
 
+import json
 import logging
+import re
+import urllib.request
 from datetime import timedelta
 
 from icalendar import Alarm, Calendar as iCalendar, vCalAddress
@@ -195,6 +198,216 @@ def set_alert(
     event.add_component(alarm)
     logger.info('Set %s alert at -%d min ("%s")', action_type, minutes, description)
     return True
+
+
+# ---------------------------------------------------------------------------
+# Privacy actions
+# ---------------------------------------------------------------------------
+
+_VALID_CLASSES = {"PUBLIC", "PRIVATE", "CONFIDENTIAL"}
+_REDACT_FIELDS = ("SUMMARY", "DESCRIPTION", "LOCATION")
+_LLM_CONFIG: dict = {}
+_LLM_CACHE: dict[tuple, dict] = {}
+
+
+def set_llm_config(config: dict | None) -> None:
+    """Install the ``llm:`` config block used by ``classify-with-llm``."""
+    global _LLM_CONFIG
+    _LLM_CONFIG = dict(config or {})
+    _LLM_CACHE.clear()
+
+
+def set_class(event, value: str) -> bool:
+    """Set the CLASS property (RFC 5545 3.8.1.3); idempotent."""
+    value = str(value).upper()
+    if value not in _VALID_CLASSES:
+        logger.warning("set-class: invalid value %r", value)
+        return False
+    if str(event.get("CLASS", "")).upper() == value:
+        return False
+    if "CLASS" in event:
+        del event["CLASS"]
+    event.add("CLASS", value)
+    logger.info("Set CLASS:%s", value)
+    return True
+
+
+def _text_of(event, fields=("SUMMARY", "DESCRIPTION")) -> str:
+    return "\n".join(str(event.get(f, "")) for f in fields)
+
+
+def _matches_keywords(event, keywords) -> bool:
+    text = _text_of(event).lower()
+    return any(str(k).lower() in text for k in keywords)
+
+
+def redact_words(event, replacement: str, words, fields=_REDACT_FIELDS) -> bool:
+    """Replace whole-word, case-insensitive matches of *words* in *fields*."""
+    words = [str(w) for w in words if str(w)]
+    if not words:
+        return False
+    pattern = re.compile(
+        r"(?<!\w)(?:" + "|".join(re.escape(w) for w in words) + r")(?!\w)",
+        re.IGNORECASE,
+    )
+    changed = False
+    for field in fields:
+        if field not in event:
+            continue
+        old = str(event[field])
+        new = pattern.sub(replacement, old)
+        if new != old:
+            del event[field]
+            event.add(field, new)
+            changed = True
+    return changed
+
+
+def add_category(event, category: str) -> bool:
+    """Add *category* to CATEGORIES without duplicating it."""
+    category = str(category).strip()
+    if not category:
+        return False
+    existing: list[str] = []
+    raw = event.get("CATEGORIES")
+    for item in raw if isinstance(raw, list) else ([raw] if raw else []):
+        cats = getattr(item, "cats", None)
+        existing.extend(str(c) for c in (cats if cats is not None else [item]))
+    if category.lower() in (c.lower() for c in existing):
+        return False
+    if "CATEGORIES" in event:
+        del event["CATEGORIES"]
+    event.add("CATEGORIES", existing + [category])
+    return True
+
+
+def set_class_by_keyword(event, value: str, keywords, category=None) -> bool:
+    """Set CLASS (and optionally a category) when a keyword matches."""
+    if not _matches_keywords(event, keywords):
+        return False
+    changed = set_class(event, value)
+    if category:
+        changed = add_category(event, category) or changed
+    return changed
+
+
+def parse_llm_response(text: str) -> dict | None:
+    """Extract ``{"private", "confidence"}`` JSON from an LLM reply."""
+    match = re.search(r"\{.*\}", text or "", re.DOTALL)
+    if not match:
+        return None
+    try:
+        data = json.loads(match.group(0))
+    except ValueError:
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("private"), bool):
+        return None
+    try:
+        data["confidence"] = float(data.get("confidence", 1.0))
+    except (TypeError, ValueError):
+        data["confidence"] = 1.0
+    return data
+
+
+def _llm_request(cfg: dict, prompt: str) -> str:
+    url = cfg.get("endpoint", "https://openrouter.ai/api/v1/chat/completions")
+    body = json.dumps(
+        {
+            "model": cfg["model"],
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+        }
+    ).encode()
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + str(cfg.get("api_key", "")),
+        },
+    )
+    with urllib.request.urlopen(req, timeout=float(cfg.get("timeout", 20))) as resp:
+        payload = json.load(resp)
+    return payload["choices"][0]["message"]["content"]
+
+
+def classify_with_llm(
+    event,
+    value: str = "PRIVATE",
+    prompt: str = "",
+    threshold: float = 0.7,
+    request=None,
+) -> bool:
+    """
+    Ask an LLM whether the event is private and set CLASS when it says yes.
+
+    Requires an explicit ``llm:`` config block (opt-in). Fails open: any
+    error leaves the event untouched. Decisions are cached by UID/SEQUENCE.
+    """
+    cfg = _LLM_CONFIG
+    if not cfg.get("enabled") or not cfg.get("model"):
+        logger.warning("classify-with-llm: llm.enabled/model not configured")
+        return False
+    key = (
+        str(event.get("UID", "")),
+        str(event.get("SEQUENCE", "")),
+        str(event.get("LAST-MODIFIED", "")),
+        prompt,
+    )
+    result = _LLM_CACHE.get(key) if key[0] else None
+    if result is None:
+        attendees = event.get("ATTENDEE", [])
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+        domains = sorted(
+            {str(a).rsplit("@", 1)[-1] for a in attendees if "@" in str(a)}
+        )
+        dtstart = event.get("DTSTART")
+        dtend = event.get("DTEND")
+        info = {
+            "summary": str(event.get("SUMMARY", "")),
+            "description": str(event.get("DESCRIPTION", "")),
+            "location": str(event.get("LOCATION", "")),
+            "start": dtstart.dt.isoformat() if dtstart else "",
+            "end": dtend.dt.isoformat() if dtend else "",
+            "weekday": dtstart.dt.strftime("%A") if dtstart else "",
+            "organizer_domain": str(event.get("ORGANIZER", "")).rsplit("@", 1)[-1],
+            "attendee_domains": domains,
+        }
+        full = (
+            "Decide whether this calendar event is private (personal, not work). "
+            + (prompt + " " if prompt else "")
+            + 'Reply with strict JSON only: {"private": bool, "confidence": '
+            + '0..1, "reason": str}.\nEvent: '
+            + json.dumps(info)
+        )
+        try:
+            result = parse_llm_response((request or _llm_request)(cfg, full))
+        except Exception as exc:
+            logger.warning("classify-with-llm: request failed (%s) — skipping", exc)
+            return False
+        if result is None:
+            logger.warning("classify-with-llm: unparseable response — skipping")
+            return False
+        if key[0]:
+            _LLM_CACHE[key] = result
+    if result["private"] and result["confidence"] >= threshold:
+        return set_class(event, value)
+    return False
+
+
+def _kv_options(name: str, extra: list, allowed: set) -> dict | None:
+    if len(extra) % 2:
+        logger.warning("%s: options must be key/value pairs", name)
+        return None
+    out = {}
+    for i in range(0, len(extra), 2):
+        k = str(extra[i]).lower()
+        if k not in allowed:
+            logger.warning("%s: unknown option %r", name, k)
+            return None
+        out[k] = extra[i + 1]
+    return out
 
 
 def accept_invite(_event, inbox_item=None) -> bool:
@@ -431,6 +644,67 @@ def apply_action(
             return False
         target_name = str(args[0])
         return copy_to_calendar(event, target_name, get_calendar=get_calendar)
+
+    elif name == "set-class":
+        if event is None or not args:
+            logger.warning("set-class: VEVENT context and a value are required")
+            return False
+        return set_class(event, str(args[0]))
+
+    elif name == "redact-words":
+        if event is None or len(args) < 2:
+            logger.warning("redact-words: replacement and at least one word required")
+            return False
+        words = [a for a in args[1:] if not isinstance(a, list)]
+        opts = {}
+        for a in args[1:]:
+            if isinstance(a, list) and a:
+                opts[str(a[0]).lower()] = [str(x) for x in a[1:]]
+        scope = (opts.get("scope") or ["stored"])[0].lower()
+        if scope == "outgoing":
+            logger.warning(
+                "redact-words: scope outgoing unsupported (iTIP is generated by "
+                "the server from the stored event) — skipping"
+            )
+            return False
+        fields = tuple(f.upper() for f in opts.get("fields", _REDACT_FIELDS))
+        return redact_words(event, str(args[0]), words, fields)
+
+    elif name == "add-category":
+        if event is None or not args:
+            logger.warning("add-category: VEVENT context and a name are required")
+            return False
+        return add_category(event, str(args[0]))
+
+    elif name == "set-class-by-keyword":
+        if event is None or len(args) < 2:
+            logger.warning("set-class-by-keyword: value and (keywords ...) required")
+            return False
+        keywords, category = [], None
+        for a in args[1:]:
+            if isinstance(a, list) and a and str(a[0]) == "keywords":
+                keywords = [str(x) for x in a[1:]]
+            elif isinstance(a, list) and len(a) > 1 and str(a[0]) == "category":
+                category = str(a[1])
+        if not keywords:
+            logger.warning("set-class-by-keyword: no keywords given")
+            return False
+        return set_class_by_keyword(event, str(args[0]), keywords, category)
+
+    elif name == "classify-with-llm":
+        if event is None:
+            logger.warning("classify-with-llm: action requires VEVENT context")
+            return False
+        value = str(args[0]) if args else "PRIVATE"
+        opts = _kv_options(name, list(args[1:]), {"prompt", "threshold"})
+        if opts is None:
+            return False
+        try:
+            threshold = float(opts.get("threshold", 0.7))
+        except (TypeError, ValueError):
+            logger.warning("classify-with-llm: invalid threshold")
+            return False
+        return classify_with_llm(event, value, str(opts.get("prompt", "")), threshold)
 
     else:
         logger.warning("Unknown action %r — ignoring", name)
