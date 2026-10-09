@@ -22,6 +22,7 @@ def _ev(summary="Dentist appointment", desc=""):
 
 @pytest.mark.parametrize("value", ["PUBLIC", "PRIVATE", "CONFIDENTIAL"])
 def test_set_class_idempotent(value, caplog):
+    caplog.set_level("INFO")
     e = _ev()
     assert a.apply_action(e, ["set-class", value.lower()])
     assert str(e["CLASS"]) == value
