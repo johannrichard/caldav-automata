@@ -1,6 +1,72 @@
 # CHANGELOG
 
 
+## v0.14.0 (2026-10-09)
+
+### Bug Fixes
+
+- :bug: address privacy review findings
+  ([`0ee8e31`](https://github.com/johannrichard/caldav-automata/commit/0ee8e311a8b05e5cd716816e88858dae31f7aff9))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+- :bug: insert redaction text literally
+  ([`c4ae38c`](https://github.com/johannrichard/caldav-automata/commit/c4ae38c92f84fcb26da2d79be8780d6a7994bde5))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+- :bug: pass property params explicitly
+  ([`cb0672e`](https://github.com/johannrichard/caldav-automata/commit/cb0672ee2984bddd2f4afb0d96053bc53e2fb86b))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+- :bug: preserve repeated text properties
+  ([`ee64f79`](https://github.com/johannrichard/caldav-automata/commit/ee64f79b7abbf0c36050d74a38f2b280131c2e5e))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+- :bug: report invalid LLM thresholds
+  ([`3896637`](https://github.com/johannrichard/caldav-automata/commit/3896637c6460fe32ffc5764eeb6e28e970ca1928))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+### Code Style
+
+- :art: shorten invalid fields warning
+  ([`64b2d3a`](https://github.com/johannrichard/caldav-automata/commit/64b2d3aac604442f52ec5f9e2a276f5f9195a4de))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+### Features
+
+- :sparkles: add privacy actions (set-class, redact, keyword, LLM)
+  ([`97f20a0`](https://github.com/johannrichard/caldav-automata/commit/97f20a0d0888a58da69af29581d64823aaf6086e))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+- :sparkles: use OpenRouter decision model for LLM classification
+  ([`ee192ae`](https://github.com/johannrichard/caldav-automata/commit/ee192aea1fc08c09735fee66edc401870c853cdc))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+### Testing
+
+- :white_check_mark: cover boolean thresholds and LRU order
+  ([`2e45152`](https://github.com/johannrichard/caldav-automata/commit/2e451521947734480b371f6f6d89066bc77eb2e3))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+- :white_check_mark: cover LLM cache review cases
+  ([`9c90f59`](https://github.com/johannrichard/caldav-automata/commit/9c90f590e7402130049294d113e367bab8dbd429))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+- :white_check_mark: verify invalid threshold warnings
+  ([`10b47ea`](https://github.com/johannrichard/caldav-automata/commit/10b47ea9506e775f764172ae1406398a9c723e22))
+
+Co-authored-by: johannrichard <189003+johannrichard@users.noreply.github.com>
+
+
 ## v0.13.1 (2026-06-17)
 
 ### Build System

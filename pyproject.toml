@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "caldav-automata"
-version = "0.13.1"
+version = "0.14.0"
 description = "CalDAV polling daemon with a LISP rule engine"
 readme = "README.md"
 license = { text = "MIT" }
