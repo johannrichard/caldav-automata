@@ -249,7 +249,7 @@ def redact_words(event, replacement: str, words, fields=_REDACT_FIELDS) -> bool:
     """Replace whole-word, case-insensitive matches of *words* in *fields*."""
     fields = tuple(str(field).upper() for field in fields)
     if not fields or any(field not in _REDACT_FIELDS for field in fields):
-        logger.warning("redact-words: fields must be SUMMARY, DESCRIPTION, or LOCATION")
+        logger.warning("redact-words: invalid fields %r", fields)
         return False
     words = [str(w) for w in words if str(w)]
     if not words:
