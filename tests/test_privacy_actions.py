@@ -50,16 +50,19 @@ def test_class_by_keyword_and_category():
     assert not a.apply_action(_ev("Standup"), form)
 
 
-def test_llm_parse_and_classify():
-    assert a.parse_llm_response('x {"private": true, "confidence": 0.9} y')["private"]
-    assert a.parse_llm_response("nope") is None
-    a.set_llm_config({"enabled": True, "model": "m"})
+def test_llm_decision():
+    ok = {"answers": {"is_private": {"type": "noul", "noul": 0.93}}}
+    assert a.parse_decision_response(ok) == 0.93
+    assert a.parse_decision_response({"answers": {}}) is None
+    a.set_llm_config({"enabled": True, "model": "respan/span-01-lite"})
     e = _ev()
-    assert a.classify_with_llm(
-        e, request=lambda c, p: '{"private": true, "confidence": 0.9}'
-    )
+    assert a.classify_with_llm(e, request=lambda c, s, i: ok)
     assert str(e["CLASS"]) == "PRIVATE"
+    low = {"answers": {"is_private": {"type": "noul", "noul": 0.1}}}
     e2 = _ev()
     e2["UID"] = "u2"
-    assert not a.classify_with_llm(e2, request=lambda c, p: "garbage")
+    assert not a.classify_with_llm(e2, request=lambda c, s, i: low)
+    e3 = _ev()
+    e3["UID"] = "u3"
+    assert not a.classify_with_llm(e3, request=lambda c, s, i: {})
     a.set_llm_config(None)

@@ -190,7 +190,7 @@
 ;     (redact-words "Private" "dentist" "therapy")
 ;     (set-class-by-keyword "PRIVATE" (keywords "doctor" "dentist") (category "Health"))))
 
-; Let an LLM decide (requires llm: block in config; opt-in).
+; Let an OpenRouter decision model decide (noul probability >= threshold) (requires llm: block in config; opt-in).
 ; (rule
 ;   (when (calendar "Work"))
 ;   (on-create

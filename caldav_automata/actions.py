@@ -207,7 +207,7 @@ def set_alert(
 _VALID_CLASSES = {"PUBLIC", "PRIVATE", "CONFIDENTIAL"}
 _REDACT_FIELDS = ("SUMMARY", "DESCRIPTION", "LOCATION")
 _LLM_CONFIG: dict = {}
-_LLM_CACHE: dict[tuple, dict] = {}
+_LLM_CACHE: dict[tuple, float] = {}
 
 
 def set_llm_config(config: dict | None) -> None:
@@ -291,31 +291,36 @@ def set_class_by_keyword(event, value: str, keywords, category=None) -> bool:
     return changed
 
 
-def parse_llm_response(text: str) -> dict | None:
-    """Extract ``{"private", "confidence"}`` JSON from an LLM reply."""
-    match = re.search(r"\{.*\}", text or "", re.DOTALL)
-    if not match:
-        return None
+def parse_decision_response(payload: dict, question: str = "is_private"):
+    """Return the ``noul`` score (probability of "true") for *question*."""
     try:
-        data = json.loads(match.group(0))
-    except ValueError:
+        answer = payload["answers"][question]
+        if answer.get("type") != "noul":
+            return None
+        score = float(answer["noul"])
+    except (KeyError, TypeError, ValueError, AttributeError):
         return None
-    if not isinstance(data, dict) or not isinstance(data.get("private"), bool):
-        return None
-    try:
-        data["confidence"] = float(data.get("confidence", 1.0))
-    except (TypeError, ValueError):
-        data["confidence"] = 1.0
-    return data
+    return score if 0.0 <= score <= 1.0 else None
 
 
-def _llm_request(cfg: dict, prompt: str) -> str:
-    url = cfg.get("endpoint", "https://openrouter.ai/api/v1/chat/completions")
+def _llm_request(cfg: dict, state: str, instructions: str) -> dict:
+    """POST a decision request ({model, state, questions}) and return JSON."""
+    url = cfg.get("endpoint", "https://openrouter.ai/api/v1/decisions")
     body = json.dumps(
         {
             "model": cfg["model"],
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
+            "state": state,
+            "questions": {
+                "is_private": {
+                    "type": "noul",
+                    "instructions": instructions,
+                    "criteria": {
+                        "true": "Personal or sensitive; should not be visible "
+                        "to others on a shared calendar.",
+                        "false": "Ordinary work or public event.",
+                    },
+                }
+            },
         }
     ).encode()
     req = urllib.request.Request(
@@ -327,8 +332,7 @@ def _llm_request(cfg: dict, prompt: str) -> str:
         },
     )
     with urllib.request.urlopen(req, timeout=float(cfg.get("timeout", 20))) as resp:
-        payload = json.load(resp)
-    return payload["choices"][0]["message"]["content"]
+        return json.load(resp)
 
 
 def classify_with_llm(
@@ -339,7 +343,8 @@ def classify_with_llm(
     request=None,
 ) -> bool:
     """
-    Ask an LLM whether the event is private and set CLASS when it says yes.
+    Ask an OpenRouter decision model whether the event is private and set
+    CLASS when the returned ``noul`` probability meets *threshold*.
 
     Requires an explicit ``llm:`` config block (opt-in). Fails open: any
     error leaves the event untouched. Decisions are cached by UID/SEQUENCE.
@@ -374,24 +379,23 @@ def classify_with_llm(
             "organizer_domain": str(event.get("ORGANIZER", "")).rsplit("@", 1)[-1],
             "attendee_domains": domains,
         }
-        full = (
-            "Decide whether this calendar event is private (personal, not work). "
-            + (prompt + " " if prompt else "")
-            + 'Reply with strict JSON only: {"private": bool, "confidence": '
-            + '0..1, "reason": str}.\nEvent: '
-            + json.dumps(info)
+        instructions = (
+            "Is this calendar event private (personal, not work-related)?"
+            + (" " + prompt if prompt else "")
         )
+        state = "Calendar event: " + json.dumps(info)
         try:
-            result = parse_llm_response((request or _llm_request)(cfg, full))
+            payload = (request or _llm_request)(cfg, state, instructions)
         except Exception as exc:
             logger.warning("classify-with-llm: request failed (%s) — skipping", exc)
             return False
+        result = parse_decision_response(payload)
         if result is None:
             logger.warning("classify-with-llm: unparseable response — skipping")
             return False
         if key[0]:
             _LLM_CACHE[key] = result
-    if result["private"] and result["confidence"] >= threshold:
+    if result >= threshold:
         return set_class(event, value)
     return False
 

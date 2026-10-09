@@ -848,8 +848,8 @@ location, times, weekday and organizer/attendee domains to a third-party API:
 ```yaml
 llm:
   enabled: true
-  endpoint: https://openrouter.ai/api/v1/chat/completions  # default
-  model: "~typesafe/jev-latest"
+  endpoint: https://openrouter.ai/api/v1/decisions  # default
+  model: "respan/span-01-lite"
   api_key: "${OPENROUTER_API_KEY}"
   timeout: 20
 ```

@@ -77,7 +77,7 @@ accounts:
 #
 # llm:
 #   enabled: true
-#   model: "~typesafe/jev-latest"
+#   model: "respan/span-01-lite"
 #   api_key: "${OPENROUTER_API_KEY}"
-#   # endpoint: "https://openrouter.ai/api/v1/chat/completions"
+#   # endpoint: "https://openrouter.ai/api/v1/decisions"
 #   # timeout: 20
