@@ -228,6 +228,7 @@ def set_class(event, value: str) -> bool:
         logger.warning("set-class: invalid value %r", value)
         return False
     if str(event.get("CLASS", "")).upper() == value:
+        logger.info("CLASS already %s", value)
         return False
     if "CLASS" in event:
         del event["CLASS"]
