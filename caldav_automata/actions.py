@@ -369,13 +369,16 @@ def classify_with_llm(
     if not cfg.get("enabled") or not cfg.get("model"):
         logger.warning("classify-with-llm: llm.enabled/model not configured")
         return False
+    threshold_value = threshold
     try:
         threshold = float(threshold)
     except (TypeError, ValueError):
-        logger.warning("classify-with-llm: invalid threshold")
-        return False
+        threshold = math.nan
     if not math.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
-        logger.warning("classify-with-llm: threshold must be between 0 and 1")
+        logger.warning(
+            "classify-with-llm: invalid threshold %r; expected a value between 0 and 1",
+            threshold_value,
+        )
         return False
 
     attendees = event.get("ATTENDEE", [])

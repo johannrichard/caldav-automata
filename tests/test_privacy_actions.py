@@ -159,7 +159,7 @@ def test_llm_cache_key_includes_model():
     e = _ev()
     assert a.classify_with_llm(e, request=request)
     del e["CLASS"]
-    a._LLM_CONFIG["model"] = "model-two"
+    a.set_llm_config({"enabled": True, "model": "model-two"})
     assert a.classify_with_llm(e, request=request)
     assert calls == ["model-one", "model-two"]
 
