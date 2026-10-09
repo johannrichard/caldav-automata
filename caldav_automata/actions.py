@@ -712,11 +712,6 @@ def apply_action(
             )
             return False
         fields = tuple(f.upper() for f in opts.get("fields", _REDACT_FIELDS))
-        if not fields or any(field not in _REDACT_FIELDS for field in fields):
-            logger.warning(
-                "redact-words: fields must be SUMMARY, DESCRIPTION, or LOCATION"
-            )
-            return False
         return redact_words(event, str(args[0]), words, fields)
 
     elif name == "add-category":

@@ -1,6 +1,14 @@
+import pytest
 from icalendar import Event
 
 from caldav_automata import actions as a
+
+
+@pytest.fixture(autouse=True)
+def reset_llm_config():
+    a.set_llm_config(None)
+    yield
+    a.set_llm_config(None)
 
 
 def _ev(summary="Dentist appointment", desc=""):
@@ -125,6 +133,23 @@ def test_llm_cache_key_includes_classification_state():
     a.set_llm_config(None)
 
 
+def test_llm_cache_key_includes_model():
+    a.set_llm_config({"enabled": True, "model": "model-one"})
+    calls = []
+    response = {"answers": {"is_private": {"type": "noul", "noul": 0.93}}}
+
+    def request(config, state, instructions):
+        calls.append(config["model"])
+        return response
+
+    e = _ev()
+    assert a.classify_with_llm(e, request=request)
+    del e["CLASS"]
+    a._LLM_CONFIG["model"] = "model-two"
+    assert a.classify_with_llm(e, request=request)
+    assert calls == ["model-one", "model-two"]
+
+
 def test_llm_cache_is_bounded(monkeypatch):
     a.set_llm_config({"enabled": True, "model": "respan/span-01-lite"})
     monkeypatch.setattr(a, "_LLM_CACHE_MAXSIZE", 2)
@@ -135,13 +160,21 @@ def test_llm_cache_is_bounded(monkeypatch):
         calls.append(state)
         return response
 
-    for uid in ("u1", "u2", "u3"):
+    for uid in ("u1", "u2"):
         e = _ev()
         e["UID"] = uid
         assert not a.classify_with_llm(e, request=request)
+
+    e = _ev()
+    assert not a.classify_with_llm(e, request=request)
+    e = _ev()
+    e["UID"] = "u3"
+    assert not a.classify_with_llm(e, request=request)
     assert len(a._LLM_CACHE) == 2
 
     e = _ev()
+    assert not a.classify_with_llm(e, request=request)
+    e["UID"] = "u2"
     assert not a.classify_with_llm(e, request=request)
     assert len(calls) == 4
     assert len(a._LLM_CACHE) == 2
