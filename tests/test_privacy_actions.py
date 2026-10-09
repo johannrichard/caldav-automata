@@ -195,14 +195,17 @@ def test_llm_cache_is_bounded(monkeypatch):
     a.set_llm_config(None)
 
 
-def test_llm_rejects_out_of_range_thresholds():
+def test_llm_rejects_invalid_thresholds(caplog):
     a.set_llm_config({"enabled": True, "model": "respan/span-01-lite"})
-    for threshold in (-0.1, 1.1, float("nan")):
+    for threshold in (-0.1, 1.1, float("nan"), "abc", None):
+        caplog.clear()
         assert not a.classify_with_llm(
             _ev(),
             threshold=threshold,
-            request=lambda config, state, instructions: (_ for _ in ()).throw(
-                AssertionError("invalid threshold should not make a request")
-            ),
+            request=lambda *_: {
+                "answers": {"is_private": {"type": "noul", "noul": 0.9}}
+            },
         )
+        assert len(caplog.records) == 1
+        assert "invalid threshold" in caplog.records[0].message
     a.set_llm_config(None)

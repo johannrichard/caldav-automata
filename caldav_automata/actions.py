@@ -369,15 +369,14 @@ def classify_with_llm(
     if not cfg.get("enabled") or not cfg.get("model"):
         logger.warning("classify-with-llm: llm.enabled/model not configured")
         return False
-    threshold_value = threshold
     try:
-        threshold = float(threshold)
+        parsed_threshold = float(threshold)
     except (TypeError, ValueError):
-        threshold = math.nan
-    if not math.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
+        parsed_threshold = math.nan
+    if not math.isfinite(parsed_threshold) or not 0.0 <= parsed_threshold <= 1.0:
         logger.warning(
             "classify-with-llm: invalid threshold %r; expected a value between 0 and 1",
-            threshold_value,
+            threshold,
         )
         return False
 
@@ -429,7 +428,7 @@ def classify_with_llm(
             _LLM_CACHE.move_to_end(key)
             while len(_LLM_CACHE) > _LLM_CACHE_MAXSIZE:
                 _LLM_CACHE.popitem(last=False)
-    if result >= threshold:
+    if result >= parsed_threshold:
         return set_class(event, value)
     return False
 
