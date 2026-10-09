@@ -181,9 +181,11 @@ def test_llm_cache_is_bounded(monkeypatch):
 
     e = _ev()
     assert not a.classify_with_llm(e, request=request)
+    assert [key[0] for key in a._LLM_CACHE] == ["u2", "u1"]
     e = _ev()
     e["UID"] = "u3"
     assert not a.classify_with_llm(e, request=request)
+    assert [key[0] for key in a._LLM_CACHE] == ["u1", "u3"]
     assert len(a._LLM_CACHE) == 2
 
     e = _ev()
@@ -197,7 +199,7 @@ def test_llm_cache_is_bounded(monkeypatch):
 
 def test_llm_rejects_invalid_thresholds(caplog):
     a.set_llm_config({"enabled": True, "model": "respan/span-01-lite"})
-    for threshold in (-0.1, 1.1, float("nan"), "abc", None):
+    for threshold in (-0.1, 1.1, float("nan"), "abc", None, True, False):
         caplog.clear()
         assert not a.classify_with_llm(
             _ev(),

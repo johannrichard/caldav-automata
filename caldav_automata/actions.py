@@ -370,6 +370,8 @@ def classify_with_llm(
         logger.warning("classify-with-llm: llm.enabled/model not configured")
         return False
     try:
+        if isinstance(threshold, bool):
+            raise ValueError
         parsed_threshold = float(threshold)
     except (TypeError, ValueError):
         parsed_threshold = math.nan
