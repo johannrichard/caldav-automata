@@ -854,4 +854,4 @@ llm:
   timeout: 20
 ```
 
-On any error the event is left unchanged. Decisions are cached per UID/SEQUENCE.
+`classify-with-llm` uses the OpenRouter decisions API (request `{model, state, questions}`; a `noul` answer is the probability that the event is private, compared against `threshold`). The `/api/v1/decisions` endpoint path is an assumption — override `endpoint` if it differs. On any error the event is left unchanged. Decisions are cached per UID/SEQUENCE.
